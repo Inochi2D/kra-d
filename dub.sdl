@@ -1,0 +1,7 @@
+name "kra-d"
+description "D KRA Parsing Library"
+authors "otrocodigo"
+copyright "Copyright © 2023, otrocodigo"
+license "BSD 2-clause"
+dependency "dxml" version="~>0.4.3"
+targetPath "out/"
