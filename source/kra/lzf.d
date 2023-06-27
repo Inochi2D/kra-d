@@ -1,71 +1,54 @@
 module kra.lzf;
-import std.stdio;
 
-/**
-   Taken from Krita source code
-
-   https://invent.kde.org/graphics/krita/-/blob/master/libs/image/tiles3/swap/kis_lzf_compression.cpp#L173
- */
-int lzfDecompress(ubyte[] input, size_t length, ubyte[] output, size_t maxout)
+ubyte[] lzfDecompress(ubyte[] input, int length, int maxout)
 {
-	const(ubyte)* ip = cast(const(ubyte)*) input;
-	const(ubyte)* ip_limit = ip + length - 1;
-	ubyte* op = cast(ubyte*) output;
-	ubyte* op_limit = op + maxout;
-	ubyte* refer;
+    ubyte[] output = new ubyte[maxout];
 
-	while (ip < ip_limit)
-	{
-		uint ctrl = (*ip) + 1;
-		uint ofs = ((*ip) & 31) << 8;
-		uint len = (*ip++) >> 5;
+    int ip = 0; // input position
+    int op = 0; // output position
+    int ip_limit = length - 1; // Last index of input array.
 
-		if (ctrl < 33)
-		{
-			if (op + ctrl > op_limit)
-				return 0;
+    int refer; // index for back reference
 
-			if (ctrl)
-			{
-				*op++ = *ip++;
-				ctrl--;
+    while (ip < ip_limit)
+    {
+        uint ctrl = input[ip] + 1; // control byte
+        uint ofs = (input[ip] & 31) << 8; // distance of back reference.
+        uint len = input[ip++] >> 5; // length of back reference.
 
-				if (ctrl)
-				{
-					*op++ = *ip++;
-					ctrl--;
+        if (ctrl < 33)
+        {
+            // copy the next 'ctrl' number of bytes from the input array to the output array.
+            output[op .. op + ctrl] = input[ip .. ip + ctrl];
+	    
+            ip += ctrl;
+            op += ctrl;
+        }
+        else
+        {
+            // calculate reference index based on the distance of the back reference.
+            len--;
+            refer = op - ofs;
+            refer--;
 
-					for (; ctrl; ctrl--)
-						*op++ = *ip++;
-				}
-			}
-		}
-		else
-		{
-			/* back reference */
-			len--;
-			refer = op - ofs;
-			refer--;
+            if (len == 7 - 1)
+                len += input[ip++];
 
-			if (len == 7 - 1)
-				len += *ip++;
+            refer -= input[ip++]; // adjust index based on length of back reference.
 
-			refer -= *ip++;
+            // check that the reference index isn't out of range
+            if (op + len + 3 > maxout || refer < 0)
+                return new ubyte[0];
 
-			if (op + len + 3 > op_limit)
-				return 0;
+            output[op++] = output[refer++];
+            output[op++] = output[refer++];
+            output[op++] = output[refer++];
 
-			if (refer < cast(ubyte*) output)
-				return 0;
+            if (len)
+                for (; len > 0; --len)
+                    output[op++] = output[refer++];
+        }
+    }
 
-			*op++ = *refer++;
-			*op++ = *refer++;
-			*op++ = *refer++;
-
-			if (len)
-				for (; len; --len)
-					*op++ = *refer++;
-		}
-	}
-	return cast(int)(op - cast(ubyte*) output);
+    return output[0 .. op];
 }

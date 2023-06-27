@@ -3,9 +3,10 @@
 
    This is based https://github.com/2shady4u/libkra
    Structure based on psd-d (https://github.com/inochi2d/psd-d)
+
+   Authors: Luna Neilsen, otrocodigo
    
 */
-   
 
 module kra.parser;
 import kra;
@@ -31,6 +32,13 @@ import std.zip;
 KRA parseDocument(string fileName)
 {
 	auto file = new ZipArchive(read(fileName));
+	return parseKRAFile(file);
+}
+
+package(kra):
+private:
+KRA parseKRAFile(ZipArchive file)
+{
 	KRA kra;
 	kra.fileRef = file;
 
@@ -42,28 +50,26 @@ KRA parseDocument(string fileName)
 	auto doc = dom.children[0];
 	auto image = doc.children[0];
 
-	auto imageAttributes = image.attributes;
-	auto width = imageAttributes.filter!(x => x[0] == "width").front[1];
-	auto height = imageAttributes.filter!(x => x[0] == "height").front[1];
+	auto attrs = image.attributes;
 
-	auto name = imageAttributes.filter!(x => x[0] == "name").front[1];
-	kra.name = name;
+	kra.width = to!int(getAttrValue(attrs, "width"));
+	kra.height = to!int(getAttrValue(attrs, "height"));
+	kra.name = getAttrValue(attrs, "name");
+	kra.colorMode = cast(ColorMode) getAttrValue(attrs, "colorspacename");
 
-	auto colorspacename = imageAttributes.filter!(x => x[0] == "colorspacename").front[1];
-
-	kra.width = to!int(width);
-	kra.height = to!int(height);
-	kra.colorMode = cast(ColorMode) colorspacename;
-
-	DOMEntity!string layerEntity = image.children[0];
+	auto layerEntity = image.children[0];
 
 	importAttributes(kra, layerEntity);
 
 	return kra;
 }
 
-package(kra):
-private:
+auto getAttrValue(T...)(in T attributes, string attribute)
+{
+	auto vals = attributes.filter!(x => x[0] == attribute).front;
+	return (vals.length > 1) ? vals[1] : null;
+}
+
 void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 {
 	auto layers = layerEntity.children.filter!(x => x.name == "layer");
@@ -72,93 +78,81 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 	{
 		Layer layer;
 
-		auto att = l.attributes;
-		auto nodeType = att.filter!(x => x[0] == "nodetype").front[1];
+		auto attrs = l.attributes;
 
-		auto fileName = att.filter!(x => x[0] == "filename").front[1];
-		auto layerName = att.filter!(x => x[0] == "name").front[1];
-		auto uuid = att.filter!(x => x[0] == "uuid").front[1];
+		layer.name = getAttrValue(attrs, "name");
+		layer.isVisible = cast(bool) to!int(getAttrValue(attrs, "visible"));
+		layer.opacity = to!int(getAttrValue(attrs, "opacity"));
+		layer.uuid = getAttrValue(attrs, "uuid");
+		layer.x = to!int(getAttrValue(attrs, "x"));
+		layer.y = to!int(getAttrValue(attrs, "y"));
 
-		auto compositeOp = att.filter!(x => x[0] == "compositeop").front[1];
-
-		auto x = to!int(att.filter!(x => x[0] == "x").front[1]);
-		auto y = to!int(att.filter!(x => x[0] == "y").front[1]);
-		auto opacity = to!int(att.filter!(x => x[0] == "opacity").front[1]);
-
-		auto visible = cast(bool) to!int(att.filter!(x => x[0] == "visible").front[1]);
-		auto collapsed = cast(bool) to!int(att.filter!(x => x[0] == "collapsed").front[1]);
-
-		layer.name = layerName;
-		layer.isVisible = visible;
-		layer.opacity = opacity;
-		layer.uuid = uuid;
-		layer.x = x;
-		layer.x = y;
-
-		if (nodeType == "paintlayer")
+		switch (getAttrValue(attrs, "nodetype"))
 		{
-			auto colorSpacename = att.filter!(x => x[0] == "colorspacename").front[1];
+		default: //"paintlayer":
+			auto colorSpacename = getAttrValue(attrs, "colorspacename");
+			auto fileName = getAttrValue(attrs, "filename");
+			auto compositeOp = getAttrValue(attrs, "compositeop");
 
 			layer.type = LayerType.Any;
+			layer.blendModeKey = cast(BlendingMode) compositeOp;
+			layer.colorMode = cast(ColorMode) colorSpacename;
 
 			auto layerFile = kra.fileRef.directory[buildPath(kra.name, "layers", fileName)];
 			kra.fileRef.expand(layerFile);
-			layer.dataPtr = layerFile.expandedData.ptr;
+			parseLayerData(layerFile.expandedData.ptr, layer);
 
-			layer.blendModeKey = cast(BlendingMode) compositeOp;
-			layer.colorMode = cast(ColorMode) colorSpacename;
-			parseLayer(layer);
 			kra.layers ~= layer;
-		}
-		else if (nodeType == "grouplayer")
-		{
+			break;
+		case "grouplayer":
 			importAttributes(kra, l.children[0]);
 
+			auto collapsed = cast(bool) to!int(getAttrValue(attrs, "collapsed"));
 			layer.type = (collapsed) ? LayerType.ClosedFolder : LayerType.OpenFolder;
 			kra.layers ~= layer;
 
 			Layer groupEnd;
 			groupEnd.type = LayerType.SectionDivider;
 			kra.layers ~= groupEnd;
+			break;
 		}
 
 	}
 }
 
-Layer parseLayer(ref Layer layer)
+void parseLayerData(ubyte* layerData, ref Layer layer)
 {
-	parseLayerHeader(layer);
+	auto layerInfo = readLayerInfo(layerData);
 
-	uint n_tiles = elementValue(layer, "DATA");
+	layer.numberOfVersion = to!int(layerInfo["VERSION"]);
+	layer.tileWidth = to!int(layerInfo["TILEWIDTH"]);
+	layer.tileHeight = to!int(layerInfo["TILEHEIGHT"]);
+	layer.pixelSize = to!int(layerInfo["PIXELSIZE"]);
 
-	layer.tiles = new Tile[n_tiles];
+	uint n_tiles = to!int(layerInfo["DATA"]);
 
 	foreach (i; 0 .. n_tiles)
 	{
+		string tileInfo = readLayerLine(layerData);
+
+		auto sm = tileInfo.split(",");
+
 		Tile tile;
 
-		string header;
+		tile.left = to!int(sm[0]);
+		tile.top = to!int(sm[1]);
+		int compressedLength = to!int(sm[3]);
 
-		while (*++layer.dataPtr != 10)
-			header ~= *layer.dataPtr;
+		tile.compressedData = layerData[1 .. compressedLength + 1];
+		tile.compressedLenght = compressedLength;
 
-		auto e = ctRegex!("(-?\\d*),(-?\\d*),(\\w*),(\\d*)");
-		auto sm = matchFirst(header, e);
+		layerData += compressedLength;
 
-		tile.left = to!int(sm[1]);
-		tile.top = to!int(sm[2]);
-
-		int compressed_length = to!int(sm[4]);
-
-		ubyte[] input = layer.dataPtr[1 .. compressed_length + 1].array;
-
-		layer.dataPtr += compressed_length;
-
-		tile.compressedLenght = compressed_length;
-		tile.compressedData = input;
-
-		layer.tiles[i] = tile;
+		layer.tiles ~= tile;
 	}
+
+	int tileWidth = cast(int) layer.tileWidth;
+	int tileHeight = cast(int) layer.tileHeight;
 
 	layer.top = 0;
 	layer.left = 0;
@@ -168,53 +162,113 @@ Layer parseLayer(ref Layer layer)
 	foreach (tile; layer.tiles)
 	{
 		if (tile.left < layer.left)
-		{
 			layer.left = tile.left;
-		}
-		if (tile.left + cast(int) layer.tileWidth > layer.right)
-		{
-			layer.right = tile.left + cast(int) layer.tileWidth;
-		}
-
+		if (tile.left + tileWidth > layer.right)
+			layer.right = tile.left + tileWidth;
 		if (tile.top < layer.top)
-		{
 			layer.top = tile.top;
-		}
-
-		if (tile.top + cast(int) layer.tileHeight > layer.bottom)
-		{
-			layer.bottom = tile.top + cast(int) layer.tileHeight;
-		}
+		if (tile.top + tileHeight > layer.bottom)
+			layer.bottom = tile.top + tileHeight;
 	}
 
 	layer.width = layer.right - layer.left;
 	layer.height = layer.bottom - layer.top;
-
-	return layer;
 }
 
-uint elementValue(ref Layer layer, const string element_name)
+string readLayerLine(ref ubyte* layerData)
 {
-	layer.dataPtr += element_name.length + 1;
-	string v;
-	while (*++layer.dataPtr != 10)
-		v ~= *layer.dataPtr;
-	return to!int(v);
+	string header;
+	while (*layerData != 10)
+		header ~= *layerData++;
+	layerData++;
+	return header;
 }
 
-/*
-  KRITA LAYER HEADER
- */
-void parseLayerHeader(ref Layer layer)
+string[string] readLayerInfo(ref ubyte* layerData)
 {
-	layer.numberOfVersion = elementValue(layer, "VERSIO");
-	layer.tileWidth = elementValue(layer, "TILEWIDTH");
-	layer.tileHeight = elementValue(layer, "TILEHEIGHT");
-	layer.pixelSize = elementValue(layer, "PIXELSIZE");
+	string[string] headers;
+	foreach (i; 0 .. 5)
+	{
+		auto parts = readLayerLine(layerData).split(" ");
+		headers[parts[0]] = parts[1];
+	}
+	return headers;
+}
+
+void cropLayer(ubyte[] layerData, ref Layer layer)
+{
+	// Initialize the coordinates of the top-left and bottom-right corners of the crop
+	int xmin = int.max;
+	int ymin = int.max;
+	int xmax = 0;
+	int ymax = 0;
+
+	foreach (y; 0 .. layer.height)
+	{
+		size_t layerIdxY = (y * layer.width) * 4;
+
+		foreach (x; 0 .. layer.width)
+		{
+			size_t layerIdxX = layerIdxY + (x * 4);
+
+			// Check if a pixel is not completely transparent
+			if (layerData[layerIdxX .. layerIdxX + 3] != [
+				0, 0, 0
+			]
+					&& layerData[layerIdxX + 3] >= 0)
+			{
+				// Update the coordinates of the top-left and bottom-right corners
+				if (xmin > x)
+					xmin = x;
+				if (ymin > y)
+					ymin = y;
+				if (xmax < x)
+					xmax = x;
+				if (ymax < y)
+					ymax = y;
+			}
+		}
+	}
+
+	// Adjust xmax and ymax to include the last column and row of pixels
+	xmax += 1;
+	ymax += 1;
+
+	// Calculate the width and height of the crop
+	int cropWidth = xmax - xmin;
+	int cropHeight = ymax - ymin;
+
+	// Copy the relevant pixels from composedData to outData for each row in the cropped
+	ubyte[] outData = new ubyte[cropWidth * cropHeight * layer
+			.pixelSize];
+
+	foreach (y; 0 .. cropHeight)
+	{
+		// Calculate the byte index of the beginning of the current row in composedData
+		size_t lineStart = ((ymin + y) * layer.width + xmin) * layer
+			.pixelSize;
+
+		// Calculate the byte index of the beginning of the current row in outData
+		size_t outStart = y * cropWidth * layer
+			.pixelSize;
+
+		// Calculate how many bytes to copy for the current row
+		size_t runLength = (cropWidth * layer.pixelSize);
+
+		// Copy the relevant pixels from composedData to outData for the current row
+		outData[outStart .. outStart + runLength] = layerData[lineStart .. lineStart + runLength];
+	}
+
+	layer.width = cropWidth;
+	layer.height = cropHeight;
+	layer.left = xmin;
+	layer.top = ymin;
+
+	layer.data = outData;
 }
 
 public:
-void extractLayer(ref Layer layer)
+void extractLayer(ref Layer layer, bool crop)
 {
 	uint decompressedLength = layer.pixelSize * layer.tileWidth * layer.tileHeight;
 	uint numberOfColumns = cast(uint) layer.width / layer.tileWidth;
@@ -227,20 +281,18 @@ void extractLayer(ref Layer layer)
 
 	foreach (tile; layer.tiles)
 	{
-		ubyte[] unsortedData = new ubyte[decompressedLength];
-
-		lzfDecompress(tile.compressedData[1 .. $], tile.compressedLenght, unsortedData, decompressedLength);
+		auto unsortedData = lzfDecompress(tile.compressedData, tile.compressedLenght, decompressedLength);
 
 		auto pixelVector = iota(0, layer.pixelSize).array;
 
-		if (layer.colorMode == ColorMode.RGBA)
+		switch (layer.colorMode)
 		{
+		default:
+		case ColorMode.RGBA:
 			uint bytesPerChannel = 1;
 			swapRanges(pixelVector[0 .. bytesPerChannel], pixelVector[bytesPerChannel * 2 .. $]);
-
-		}
-		else if (layer.colorMode == ColorMode.RGBA16)
-		{
+			break;
+		case ColorMode.RGBA16:
 			uint bytesPerChannel = 2;
 			swapRanges(pixelVector[0 .. bytesPerChannel], pixelVector[bytesPerChannel * 2 .. $]);
 		}
@@ -275,5 +327,9 @@ void extractLayer(ref Layer layer)
 		}
 
 	}
-	layer.data = composedData;
+
+	if (crop)
+	  cropLayer(composedData, layer);
+	else
+	  layer.data = composedData;
 }
