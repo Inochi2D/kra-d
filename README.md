@@ -32,7 +32,7 @@ foreach(layer; doc.layers) {
 }
 ```
 ## Current Limitations
-The current implementation does not calculate the initial position of the texture, getting the entire layer with a size greater than the size of the visible texture.
+TODO
 
 ---
 
