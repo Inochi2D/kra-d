@@ -32,8 +32,8 @@ foreach(layer; doc.layers) {
 }
 ```
 ## Current Limitations
-TODO
 
+- No support for mask layers
 ---
 
 **Thanks to LunaTheFoxgirl** for the inspiration for the project.
