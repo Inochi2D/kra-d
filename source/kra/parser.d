@@ -26,7 +26,13 @@ import std.algorithm.mutation : swapRanges;
 import core.stdc.string;
 import dxml.dom;
 import std.zip;
-import imageformats;
+
+struct TileData
+{
+	int top;
+	int left;
+	ubyte[] data;
+}
 
 /**
    Parses a Krita document
@@ -132,7 +138,6 @@ void parseLayerData(ubyte* layerData, ref Layer layer)
 	layer.pixelSize = to!int(layerInfo["PIXELSIZE"]);
 
 	uint n_tiles = to!int(layerInfo["DATA"]);
-	Tile[] tiles;
 
 	foreach (i; 0 .. n_tiles)
 	{
@@ -151,33 +156,31 @@ void parseLayerData(ubyte* layerData, ref Layer layer)
 
 		layerData += compressedLength;
 
-		tiles ~= tile;
+		layer.tiles ~= tile;
 	}
 
-	auto sortedTiles = tiles.sort!((a, b) => a.top < b.top || (a.top == b.top && a.left < b
-			.left));
+	int tileWidth = cast(int) layer.tileWidth;
+	int tileHeight = cast(int) layer.tileHeight;
 
-	auto top = sortedTiles[0].top;
+	layer.top = 0;
+	layer.left = 0;
+	layer.bottom = 0;
+	layer.right = 0;
 
-	int ix = 0;
-
-	while (ix < sortedTiles.length && sortedTiles[ix].top == top)
+	foreach (tile; layer.tiles)
 	{
-		ix++;
+		if (tile.left < layer.left)
+			layer.left = tile.left;
+		if (tile.left + tileWidth > layer.right)
+			layer.right = tile.left + tileWidth;
+		if (tile.top < layer.top)
+			layer.top = tile.top;
+		if (tile.top + tileHeight > layer.bottom)
+			layer.bottom = tile.top + tileHeight;
 	}
 
-	int numberOfColumns = ix;
-	int numberOfRows = cast(int) sortedTiles.length / ix;
-
-	layer.width = layer.tileWidth * numberOfColumns;
-	layer.height = layer.tileHeight * numberOfRows;
-
-	layer.top = top;
-	layer.left = sortedTiles[0].left;
-	layer.bottom = sortedTiles[$ - 1].top + layer.tileHeight;
-	layer.right = sortedTiles[$ - 1].left + layer.tileWidth;
-
-	layer.tiles = sortedTiles.array;
+	layer.width = layer.right - layer.left;
+	layer.height = layer.bottom - layer.top;
 }
 
 string readLayerLine(ref ubyte* layerData)
@@ -266,8 +269,8 @@ void cropLayer(ubyte[] layerData, ref Layer layer)
 
 	layer.width = cropWidth;
 	layer.height = cropHeight;
-	layer.left += xmin;
-	layer.top += ymin;
+	layer.left = xmin;
+	layer.top = ymin;
 
 	layer.data = outData;
 }
@@ -275,62 +278,125 @@ void cropLayer(ubyte[] layerData, ref Layer layer)
 public:
 void extractLayer(ref Layer layer, bool crop)
 {
+
+	import std.zlib : uncompress;
+
+	TileData[] tiles;
+
 	uint decompressedLength = layer.pixelSize * layer.tileWidth * layer.tileHeight;
+	uint numberOfColumns = cast(uint) layer.width / layer.tileWidth;
+	uint numberOfRows = cast(uint) layer.height / layer.tileHeight;
 
-	int numberOfColumns = layer.width / layer.tileWidth;
-	int numberOfRows = layer.height / layer.tileHeight;
+	uint rowLength = numberOfColumns * layer.pixelSize * layer.tileWidth;
 
-	int rowLength = numberOfColumns * layer.pixelSize * layer.tileWidth;
-	int composedLength = numberOfColumns * numberOfRows * decompressedLength;
+	uint composedLength = numberOfColumns * numberOfRows * decompressedLength;
+
 	ubyte[] composedData = new ubyte[composedLength];
 
-	for (int row = 0; row < numberOfColumns * numberOfRows; row++)
+	foreach (tile; layer.tiles)
 	{
-		auto tile = layer.tiles[row];
-
-		int column = row % numberOfColumns;
-		int relativeTileLeft = column * layer.tileWidth;
-		int relativeTileTop = (row / numberOfColumns) * layer.tileHeight;
-
 		auto unsortedData = lzfDecompress(tile.compressedData, tile.compressedLenght, decompressedLength);
-		uint bytesPerChannel = 1;
+
+		auto pixelVector = iota(0, layer.pixelSize).array;
 
 		switch (layer.colorMode)
 		{
-		default: //ColorMode.RGBA
+		default:
+		case ColorMode.RGBA:
+			uint bytesPerChannel = 1;
+			swapRanges(pixelVector[0 .. bytesPerChannel], pixelVector[bytesPerChannel * 2 .. $]);
 			break;
 		case ColorMode.RGBA16:
-			bytesPerChannel = 2;
+			uint bytesPerChannel = 2;
+			swapRanges(pixelVector[0 .. bytesPerChannel], pixelVector[bytesPerChannel * 2 .. $]);
 		}
 
-		auto pixelVector = iota(0, layer.pixelSize).array;
-		swapRanges(pixelVector[0 .. bytesPerChannel], pixelVector[bytesPerChannel * 2 .. $]);
-
 		ubyte[] sortedData = new ubyte[decompressedLength];
-		int tileArea = layer.tileHeight * layer.tileWidth;
+		int tile_area = layer.tileHeight * layer.tileWidth;
 
-		foreach (area; 0 .. tileArea)
+		foreach (i; 0 .. tile_area)
 		{
 			uint realIndex = 0;
 			foreach (j; pixelVector)
 			{
-				sortedData[area * layer.pixelSize + realIndex] =
-					unsortedData[j * tileArea + area];
+				sortedData[i * layer.pixelSize + realIndex] =
+					unsortedData[j * tile_area + i];
 				realIndex++;
 			}
 		}
 
-		auto size = layer.pixelSize * layer.tileWidth;
+		TileData td;
+		td.top = tile.top;
+		td.left = tile.left;
+		td.data = sortedData;
 
-		for (int rowIndex = 0; rowIndex < layer.tileHeight; rowIndex++)
+		tiles ~= td;
+	}
+
+	int[int] g;
+	foreach(t; tiles)
+	  g[t.top]++;
+
+
+	  
+
+	auto sort = tiles.sort!((a, b) => a.top < b.top || (a.top == b.top && a.left < b.left));
+
+	// foreach(t; sort)
+	//   writeln([t.top, t.left]);
+
+	int tw = g[tiles[0].top]; //cast(uint) layer.width / layer.tileWidth;
+	int th = to!int(g.length); //cast(uint) layer.height / layer.tileHeight;
+
+	
+
+	numberOfColumns = cast(uint) tw;
+	numberOfRows = cast(uint) th;
+
+	//	writeln([numberOfColumns, numberOfRows]);
+
+	rowLength = numberOfColumns * layer.pixelSize * layer.tileWidth;
+
+	composedLength = numberOfColumns * numberOfRows * decompressedLength;
+
+	composedData = new ubyte[composedLength];
+
+	for (int i = 0; i < tw * th; i += tw)
+	{
+
+		for (int j = 0; j < tw; j++)
 		{
-			int sourceIndex = size * rowIndex;
-			int destinationIndex = rowIndex * rowLength
-			  + relativeTileLeft * layer.pixelSize
-			  + relativeTileTop * rowLength;
-			composedData[destinationIndex .. destinationIndex + size] = sortedData[sourceIndex .. sourceIndex + size];
+			// writeln([i / tw, j, i + j]);
+
+			auto tile = sort[i + j];
+			auto sortedData = tile.data;
+			// write_image(buildPath("/tmp/eye/", to!string(tile.top) ~ "." ~ to!string(
+			// 		tile.left) ~ ".png"), 64, 64, sortedData, 4);
+
+			int relativeTileLeft = j * 64;
+			int relativeTileTop = i / tw * 64;
+
+			auto size = layer.pixelSize * layer.tileWidth;
+
+			foreach (rowIndex; 0 .. layer.tileHeight)
+			{
+				auto destination = composedData.ptr + rowIndex * rowLength;
+				destination += relativeTileLeft * layer.pixelSize;
+				destination += relativeTileTop * rowLength;
+				auto source = sortedData.ptr + size * rowIndex;
+
+				/* Copy the row of the tile to the composed data */
+				memcpy(destination, source, size);
+			}
+
+			// write_image(buildPath("/tmp/eye/", "c" ~ to!string(
+			// 		tile.top) ~ "." ~ to!string(tile.left) ~ ".png"), layer.width, layer.height, composedData, 4);
+
 		}
 	}
+
+	layer.width = 64 * tw;
+	layer.height = 64 * th;
 
 	if (crop)
 		cropLayer(composedData, layer);
