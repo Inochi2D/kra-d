@@ -204,6 +204,12 @@ string[string] readLayerInfo(ref ubyte* layerData)
 
 void cropLayer(ubyte[] layerData, ref Layer layer)
 {
+	// Avoid cropping empty layers
+	if (layerData.length == 0) return;
+
+	// Avoid cropping impossible to crop layers
+	if ((layerData.length % 4) != 0) return;
+
 	// Initialize the coordinates of the top-left and bottom-right corners of the crop
 	int xmin = int.max;
 	int ymin = int.max;
