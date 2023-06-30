@@ -156,10 +156,10 @@ package(kra):
 public:
 	// Internal properties
 	Tile[] tiles;
-	uint numberOfVersion;
-	uint pixelSize;
-	uint tileWidth;
-	uint tileHeight;
+	int numberOfVersion;
+	int pixelSize;
+	int tileWidth;
+	int tileHeight;
 	ubyte* dataPtr;
 
 	/**
