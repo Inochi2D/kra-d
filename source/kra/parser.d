@@ -73,6 +73,15 @@ KRA parseKRAFile(ZipArchive file)
 	return kra;
 }
 
+string buildPathKRA(T...)(T segments) {
+	string o = "";
+	static foreach(seg; segments) {
+		import std.conv : text;
+		o ~= "/" ~ seg.text;
+	}
+	return o[1..$];
+}
+
 auto getAttrValue(T...)(in T attributes, string attribute)
 {
 	auto vals = attributes.filter!(x => x[0] == attribute).front;
@@ -104,8 +113,7 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 			layer.type = LayerType.Any;
 			layer.blendModeKey = cast(BlendingMode) compositeOp;
 			layer.colorMode = cast(ColorMode) colorSpacename;
-
-			auto layerFile = kra.fileRef.directory[buildPath(kra.name, "layers", fileName)];
+			auto layerFile = kra.fileRef.directory[buildPathKRA(kra.name, "layers", fileName)];
 			kra.fileRef.expand(layerFile);
 			parseLayerData(layerFile.expandedData.ptr, layer);
 
@@ -196,6 +204,12 @@ string[string] readLayerInfo(ref ubyte* layerData)
 
 void cropLayer(ubyte[] layerData, ref Layer layer)
 {
+	// Avoid cropping empty layers
+	if (layerData.length == 0) return;
+
+	// Avoid cropping impossible to crop layers
+	if ((layerData.length % 4) != 0) return;
+
 	// Initialize the coordinates of the top-left and bottom-right corners of the crop
 	int xmin = int.max;
 	int ymin = int.max;
