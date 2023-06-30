@@ -224,9 +224,8 @@ void cropLayer(ubyte[] layerData, ref Layer layer)
 		{
 			size_t layerIdxX = layerIdxY + (x * 4);
 
-			// Check if a pixel is not completely transparent
-			if (layerData[layerIdxX .. layerIdxX + 3] != [0, 0, 0]
-			    && layerData[layerIdxX + 3] >= 0)
+			// Check if a pixel is not transparent
+			if (layerData[layerIdxX + 3] >= 0)
 			{
 				// Update the coordinates of the top-left and bottom-right corners
 				if (xmin > x)
