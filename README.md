@@ -31,9 +31,16 @@ foreach(layer; doc.layers) {
     write_image(buildPath(outputFolder, layer.name~".png"), layer.width, layer.height, layer.data, 4);
 }
 ```
+
+## ToDO
+
+- Add support to *Colorize Mask*
+
 ## Current Limitations
 
-- No support for mask layers
+- Unsupported *Transparency Mask*
+- Unsupported *Filter  Mask*
+- Unsupported *Transform Mask*
 ---
 
 **Thanks to LunaTheFoxgirl** for the inspiration for the project.

@@ -1,12 +1,12 @@
 module kra.lzf;
 
-ubyte[] lzfDecompress(ubyte[] input, int length, int maxout)
+ubyte[] lzfDecompress(ubyte[] input, ulong length, int maxout)
 {
     ubyte[] output = new ubyte[maxout];
 
     int ip = 0; // input position
     int op = 0; // output position
-    int ip_limit = length - 1; // Last index of input array.
+    ulong ip_limit = input.length - 1; // Last index of input array.
 
     int refer; // index for back reference
 

@@ -72,14 +72,80 @@ enum LayerType
 	SectionDivider = 3
 }
 
-struct Tile
+final class Tile
 {
 package(kra):
+private:
+	/**
+	 * The left position of the tile
+	 */
+	int _left;
+
+	/**
+	 * The top position of the tile
+	 */
+	int _top;
+
+	/**
+	 *  The compressed data
+	 */
+	ubyte[] _compressedData;
+
+	/**
+	 * The expanded (decompressed) data
+	 */
+	ubyte[] _expandedData;
+
 public:
-	int left;
-	int top;
-	int compressedLenght;
-	ubyte[] compressedData;
+	this(int left, int top, ubyte[] compressedData)
+	{
+		this._top = top;
+		this._left = left;
+		this._compressedData = compressedData;
+	}
+
+	/**
+	 * Get the left position of the tile
+	 *
+	 * Returns: The left position of the tile
+	 */
+	@property int left() const
+	{
+		return _left;
+	}
+
+	/**
+	 * Get the top position of the tile
+	 *
+	 * Returns: The top position of the tile
+	 */
+	@property int top() const
+	{
+		return _top;
+	}
+
+	/**
+	 * Get the expanded (decompressed) data
+	 *
+	 * Returns: The expanded (decompressed) data
+	 */
+	@property const(ubyte[]) expandedData() const
+	{
+		return _expandedData;
+	}
+
+	/**
+	 * Method for expanding (decompressing) the compressed data
+	 *
+	 * Params:
+	 *     expandedSize = The expected size after expansion (decompression)
+	 */
+	void expand(int expandedSize)
+	{
+		import kra.lzf;
+
+		this._expandedData = lzfDecompress(_compressedData, _compressedData.length, expandedSize);
+	}
 }
 
 struct Layer
@@ -88,89 +154,98 @@ package(kra):
 	File filePtr;
 
 public:
+	// Internal properties
 	Tile[] tiles;
-
-	Layer[] children;
+	uint numberOfVersion;
+	uint pixelSize;
+	uint tileWidth;
+	uint tileHeight;
+	ubyte* dataPtr;
 
 	/**
-     Name of layer
-  */
+	 * The data of the layer
+	 */
+	ubyte[] data;
+
+	/**
+	 *  Name of layer
+	*/
 	string name;
 
 	/**
-     Bounding box for layer
-  */
+	 * Bounding box for layer
+	 */
 	union
 	{
 		struct
 		{
 
 			/**
-                Top X coordinate of layer
-            */
+			 * Top X coordinate of layer
+			 */
 			int top;
 
 			/**
-                Left X coordinate of layer
-            */
+			 * Left X coordinate of layer
+			 */
 			int left;
 
 			/**
-                Bottom Y coordinate of layer
-            */
+			 * Bottom Y coordinate of layer
+			 */
 			int bottom;
 
 			/**
-                Right X coordinate of layer
-            */
+			 * Right X coordinate of layer
+			 */
 			int right;
 		}
 
 		/**
-            Bounds as array
-        */
+		 * Bounds as array
+		 */
 		int[4] bounds;
 	}
 
-	uint numberOfVersion;
-	uint pixelSize;
-	uint tileWidth;
-	uint tileHeight;
-
-	int width;
-	int height;
-
-	ubyte[] data;
-	ubyte* dataPtr;
-
 	/**
-        The type of layer
-    */
+	 * The type of layer
+	 */
 	LayerType type;
 
 	/**
-        Blending mode
-    */
+	 * Blending mode
+	 */
 	BlendingMode blendModeKey;
 
 	/**
-        Opacity of the layer
-    */
+	 * Opacity of the layer
+	*/
 	int opacity;
 
 	/**
-        Whether the layer is visible or not
-    */
+	 * Whether the layer is visible or not
+	*/
 	bool isVisible;
 
 	/**
-     Color mode of layer
-  */
+	 * Color mode of layer
+	 */
 	ColorMode colorMode;
 
 	/**
-         Gets the size of this layer
-     */
+	 * Gets the center coordinates of the layer
+	 */
+	uint[2] center()
+	{
+		return [
+			left + (width / 2),
+			top + (height / 2),
+		];
+	}
+
+	/**
+	 * Gets the size of this layer
+	 */
 	uint[2] size()
 	{
 		return [
@@ -180,15 +255,48 @@ public:
 	}
 
 	/**
-        Extracts the layer image
-    */
-	void extractLayerImage()
+	 * Width
+	 */
+	@property uint width() const
 	{
-		extractLayer(this);
+		return right - left;
 	}
 
-	int x;
-	int y;
+	/**
+	 * Height
+	 */
+	@property uint height() const
+	{
+		return bottom - top;
+	}
 
+	/**
+	 * Check if the layer is a group
+	 * Returns: if the layer is a group
+	 */
+	bool isLayerGroup()
+	{
+		return type == LayerType.OpenFolder || type == LayerType.ClosedFolder;
+	}
+
+	/**
+	 * Is the layer useful?
+	 */
+	bool isLayerUseful()
+	{
+		return !isLayerGroup() && (width != 0 && height != 0);
+	}
+
+	/**
+	 * Extracts the layer image
+	 */
+	void extractLayerImage(bool crop = true)
+	{
+		extractLayer(this, crop);
+	}
+
+	/**
+	 * UUID of layer
+	 */
 	string uuid;
 }
