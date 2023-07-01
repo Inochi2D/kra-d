@@ -120,9 +120,8 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 			layer.colorMode = cast(ColorMode) colorSpacename;
 			auto layerFile = kra.fileRef.directory[buildPathKRA(kra.name, "layers", fileName)];
 			kra.fileRef.expand(layerFile);
-			parseLayerData(layerFile.expandedData.ptr, layer);
-
-			kra.layers ~= layer;
+		        if (parseLayerData(layerFile.expandedData.ptr, layer))
+			  kra.layers ~= layer;
 			break;
 		case "grouplayer":
 			importAttributes(kra, l.children[0]);
@@ -142,7 +141,7 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 	}
 }
 
-void parseLayerData(ubyte* layerData, ref Layer layer)
+bool parseLayerData(ubyte* layerData, ref Layer layer)
 {
 	auto layerInfo = readLayerInfo(layerData);
 
@@ -157,6 +156,10 @@ void parseLayerData(ubyte* layerData, ref Layer layer)
 
 	uint n_tiles = to!int(layerInfo["DATA"]);
 
+	// ignore empty layer (no tiles)
+	if (n_tiles == 0)
+	  return false;
+
 	layer.tiles = new Tile[n_tiles];
 
 	foreach (i; 0 .. n_tiles)
@@ -167,6 +170,10 @@ void parseLayerData(ubyte* layerData, ref Layer layer)
 		int left = to!int(infoParts[0]);
 		int top = to!int(infoParts[1]);
 		int compressedLength = to!int(infoParts[3]);
+
+		// ignore empty tile
+		if (compressedLength == 0)
+		  continue;
 
 		ubyte[] compressedData = layerData[1 .. compressedLength + 1];
 		layerData += compressedLength;
@@ -182,6 +189,8 @@ void parseLayerData(ubyte* layerData, ref Layer layer)
 		if (top + layer.tileHeight > layer.bottom)
 			layer.bottom = top + layer.tileHeight;
 	}
+
+	return true;
 }
 
 string readLayerLine(ref ubyte* layerData)
@@ -205,13 +214,7 @@ string[string] readLayerInfo(ref ubyte* layerData)
 }
 
 void cropLayer(ubyte[] layerData, ref Layer layer)
-{
-	// Avoid cropping empty layers
-	if (layerData.length == 0) return;
-
-	// Avoid cropping impossible to crop layers
-	if ((layerData.length % 4) != 0) return;
-	
+{	
 	// Initialize the coordinates of the top-left and bottom-right corners of the crop
 	int xmin = int.max;
 	int ymin = int.max;
