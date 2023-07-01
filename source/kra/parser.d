@@ -73,13 +73,16 @@ KRA parseKRAFile(ZipArchive file)
 	return kra;
 }
 
-string buildPathKRA(T...)(T segments) {
+string buildPathKRA(T...)(T segments)
+{
 	string o = "";
-	static foreach(seg; segments) {
+	static foreach (seg; segments)
+	{
 		import std.conv : text;
+
 		o ~= "/" ~ seg.text;
 	}
-	return o[1..$];
+	return o[1 .. $];
 }
 
 auto getAttrValue(T...)(in T attributes, string attribute)
@@ -102,6 +105,8 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 		layer.isVisible = cast(bool) to!int(getAttrValue(attrs, "visible"));
 		layer.opacity = to!int(getAttrValue(attrs, "opacity"));
 		layer.uuid = getAttrValue(attrs, "uuid");
+		layer.x = to!int(getAttrValue(attrs, "x"));
+		layer.y = to!int(getAttrValue(attrs, "y"));
 
 		switch (getAttrValue(attrs, "nodetype"))
 		{
@@ -177,9 +182,6 @@ void parseLayerData(ubyte* layerData, ref Layer layer)
 		if (top + layer.tileHeight > layer.bottom)
 			layer.bottom = top + layer.tileHeight;
 	}
-
-	// layer.width = abs(layer.right - layer.left);
-	// layer.height = abs(layer.bottom - layer.top);
 }
 
 string readLayerLine(ref ubyte* layerData)
@@ -204,12 +206,8 @@ string[string] readLayerInfo(ref ubyte* layerData)
 
 void cropLayer(ubyte[] layerData, ref Layer layer)
 {
-	// Avoid cropping empty layers
-	if (layerData.length == 0) return;
 
-	// Avoid cropping impossible to crop layers
-	if ((layerData.length % 4) != 0) return;
-
+	writeln("crop");
 	// Initialize the coordinates of the top-left and bottom-right corners of the crop
 	int xmin = int.max;
 	int ymin = int.max;
@@ -225,7 +223,7 @@ void cropLayer(ubyte[] layerData, ref Layer layer)
 			size_t layerIdxX = layerIdxY + (x * 4);
 
 			// Check if a pixel is not transparent
-			if (layerData[layerIdxX + 3] >= 0)
+			if (layerData[layerIdxX + 3] > 0)
 			{
 				// Update the coordinates of the top-left and bottom-right corners
 				if (xmin > x)
@@ -350,4 +348,10 @@ void extractLayer(ref Layer layer, bool crop)
 		cropLayer(composedData, layer);
 	else
 		layer.data = composedData;
+
+	// adjust bounds according to location
+	layer.left += layer.x;
+	layer.top += layer.y;
+	layer.right += layer.x;
+	layer.bottom += layer.y;
 }

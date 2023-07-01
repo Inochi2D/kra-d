@@ -208,6 +208,30 @@ public:
 	}
 
 	/**
+	 * Location for layer
+	 */
+	union
+	{
+		struct
+		{
+			/**
+			 * X coordinate of layer
+			 */
+			int x;
+
+			/**
+			 * Y coordinate of layer
+			 */
+			int y;
+		}
+
+		/**
+		 * Location as array
+		 */
+		int[2] location;
+	}
+
+	/**
 	 * The type of layer
 	 */
 	LayerType type;
