@@ -120,8 +120,8 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 			layer.colorMode = cast(ColorMode) colorSpacename;
 			auto layerFile = kra.fileRef.directory[buildPathKRA(kra.name, "layers", fileName)];
 			kra.fileRef.expand(layerFile);
-		        if (parseLayerData(layerFile.expandedData.ptr, layer))
-			  kra.layers ~= layer;
+			if (parseLayerData(layerFile.expandedData.ptr, layer))
+				kra.layers ~= layer;
 			break;
 		case "grouplayer":
 			importAttributes(kra, l.children[0]);
@@ -158,7 +158,7 @@ bool parseLayerData(ubyte* layerData, ref Layer layer)
 
 	// ignore empty layer (no tiles)
 	if (n_tiles == 0)
-	  return false;
+		return false;
 
 	layer.tiles = new Tile[n_tiles];
 
@@ -173,7 +173,7 @@ bool parseLayerData(ubyte* layerData, ref Layer layer)
 
 		// ignore empty tile
 		if (compressedLength == 0)
-		  continue;
+			continue;
 
 		ubyte[] compressedData = layerData[1 .. compressedLength + 1];
 		layerData += compressedLength;
@@ -214,7 +214,7 @@ string[string] readLayerInfo(ref ubyte* layerData)
 }
 
 void cropLayer(ubyte[] layerData, ref Layer layer)
-{	
+{
 	// Initialize the coordinates of the top-left and bottom-right corners of the crop
 	int xmin = int.max;
 	int ymin = int.max;
@@ -282,6 +282,8 @@ void cropLayer(ubyte[] layerData, ref Layer layer)
 public:
 void extractLayer(ref Layer layer, bool crop)
 {
+	enforce(layer.type == LayerType.Any, "cannot extract a layer that is not of type 'any'");
+
 	uint decompressedLength = layer.pixelSize * layer.tileWidth * layer.tileHeight;
 
 	// number of columns and rows in the layer
