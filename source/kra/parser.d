@@ -135,7 +135,7 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 			kra.layers ~= groupEnd;
 			break;
 		default:
-			assert(0, "Unsupported nodetype.");
+		  break;
 		}
 
 	}
@@ -315,7 +315,7 @@ void extractLayer(ref Layer layer, bool crop)
 			bytesPerChannel = 2;
 			break;
 		default:
-			assert(0, "Unsupported colormode.");
+		  break;
 		}
 
 		// array of indices representing pixel components
