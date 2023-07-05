@@ -14,7 +14,6 @@ import kra.layer : Tile;
 
 import std.file;
 import std.exception;
-import std.stdio;
 import std.path;
 import std.conv;
 import std.array;
@@ -23,7 +22,6 @@ import std.algorithm;
 import std.algorithm.mutation : swapRanges;
 import core.stdc.string : memcpy;
 import dxml.dom;
-import std.math : abs;
 import std.zip;
 
 /**
@@ -36,6 +34,7 @@ KRA parseDocument(string fileName)
 }
 
 package(kra):
+
 private:
 KRA parseKRAFile(ZipArchive file)
 {
@@ -63,10 +62,10 @@ KRA parseKRAFile(ZipArchive file)
 
 	auto attrs = image.attributes;
 
-	kra.width = to!int(getAttrValue(attrs, "width"));
-	kra.height = to!int(getAttrValue(attrs, "height"));
-	kra.name = getAttrValue(attrs, "name");
-	kra.colorMode = cast(ColorMode) getAttrValue(attrs, "colorspacename");
+	kra.width = getAttrValue!int(attrs, "width", 0);
+	kra.height = getAttrValue!int(attrs, "height", 0);
+	kra.name = getAttrValue!string(attrs, "name", "");
+	kra.colorMode = cast(ColorMode) getAttrValue!string(attrs, "colorspacename", "RGBA");
 
 	importAttributes(kra, image.children[0]);
 
@@ -85,10 +84,22 @@ string buildPathKRA(T...)(T segments)
 	return o[1 .. $];
 }
 
-auto getAttrValue(T...)(in T attributes, string attribute)
+T getAttrValue(T, A...)(in A attributes, string name, T defaultValue)
 {
-	auto vals = attributes.filter!(x => x[0] == attribute).front;
-	return (vals.length > 1) ? vals[1] : null;
+	auto value = attributes.filter!(x => x[0] == name).front;
+	return value.length > 1 ? to!T(value[1]) : defaultValue;
+}
+
+Layer baseLayer(T...)(in T attributes)
+{
+	Layer layer;
+	layer.name = getAttrValue!string(attributes, "name", "");
+	layer.isVisible = cast(bool) getAttrValue!int(attributes, "visible", 0);
+	layer.opacity = getAttrValue!int(attributes, "opacity", 255);
+	layer.uuid = getAttrValue!string(attributes, "uuid", "");
+	layer.x = getAttrValue!int(attributes, "x", 0);
+	layer.y = getAttrValue!int(attributes, "y", 0);
+	return layer;
 }
 
 void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
@@ -97,45 +108,45 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 
 	foreach (l; layers)
 	{
-		Layer layer;
-
 		auto attrs = l.attributes;
 
-		layer.name = getAttrValue(attrs, "name");
-		layer.isVisible = cast(bool) to!int(getAttrValue(attrs, "visible"));
-		layer.opacity = to!int(getAttrValue(attrs, "opacity"));
-		layer.uuid = getAttrValue(attrs, "uuid");
-		layer.x = to!int(getAttrValue(attrs, "x"));
-		layer.y = to!int(getAttrValue(attrs, "y"));
-
-		switch (getAttrValue(attrs, "nodetype"))
+		switch (getAttrValue!string(attrs, "nodetype", ""))
 		{
 		case "paintlayer":
-			auto colorSpacename = getAttrValue(attrs, "colorspacename");
-			auto fileName = getAttrValue(attrs, "filename");
-			auto compositeOp = getAttrValue(attrs, "compositeop");
+			auto paintLayer = baseLayer(attrs);
 
-			layer.type = LayerType.Any;
-			layer.blendModeKey = cast(BlendingMode) compositeOp;
-			layer.colorMode = cast(ColorMode) colorSpacename;
+			auto colorSpacename = getAttrValue!string(attrs, "colorspacename", "RGBA");
+			auto fileName = getAttrValue!string(attrs, "filename", "");
+
+			enforce(fileName != "", "Invalid layer: filename attribute is required");
+
+			auto compositeOp = getAttrValue!string(attrs, "compositeop", "normal");
+
+			paintLayer.type = LayerType.Any;
+			paintLayer.blendModeKey = cast(BlendingMode) compositeOp;
+			paintLayer.colorMode = cast(ColorMode) colorSpacename;
+
 			auto layerFile = kra.fileRef.directory[buildPathKRA(kra.name, "layers", fileName)];
 			kra.fileRef.expand(layerFile);
-			if (parseLayerData(layerFile.expandedData.ptr, layer))
-				kra.layers ~= layer;
+
+			if (parseLayerData(layerFile.expandedData.ptr, paintLayer))
+				kra.layers ~= paintLayer;
 			break;
 		case "grouplayer":
 			importAttributes(kra, l.children[0]);
 
-			auto collapsed = cast(bool) to!int(getAttrValue(attrs, "collapsed"));
-			layer.type = (collapsed) ? LayerType.ClosedFolder : LayerType.OpenFolder;
-			kra.layers ~= layer;
+			auto collapsed = cast(bool) getAttrValue!int(attrs, "collapsed", 0);
+
+			auto groupLayer = baseLayer(attrs);
+			groupLayer.type = (collapsed) ? LayerType.ClosedFolder : LayerType.OpenFolder;
+			kra.layers ~= groupLayer;
 
 			Layer groupEnd;
 			groupEnd.type = LayerType.SectionDivider;
 			kra.layers ~= groupEnd;
 			break;
 		default:
-		  break;
+			break;
 		}
 
 	}
@@ -282,7 +293,7 @@ void cropLayer(ubyte[] layerData, ref Layer layer)
 public:
 void extractLayer(ref Layer layer, bool crop)
 {
-	enforce(layer.type == LayerType.Any, "cannot extract a layer that is not of type 'any'");
+	enforce(layer.isLayerUseful(), "cannot extract a layer that is not of type 'any'");
 
 	uint decompressedLength = layer.pixelSize * layer.tileWidth * layer.tileHeight;
 
@@ -315,7 +326,7 @@ void extractLayer(ref Layer layer, bool crop)
 			bytesPerChannel = 2;
 			break;
 		default:
-		  break;
+			break;
 		}
 
 		// array of indices representing pixel components
