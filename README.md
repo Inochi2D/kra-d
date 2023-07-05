@@ -38,6 +38,7 @@ foreach(layer; doc.layers) {
 
 ## Current Limitations
 
+- Only support for 'RGBA 8bit integer' documents
 - Unsupported *Transparency Mask*
 - Unsupported *Filter  Mask*
 - Unsupported *Transform Mask*
