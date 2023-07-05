@@ -47,7 +47,7 @@ KRA parseKRAFile(ZipArchive file)
 	auto mimetypeFile = kra.fileRef.directory["mimetype"];
 	kra.fileRef.expand(mimetypeFile);
 
-	enforce(cast(string) mimetypeFile.expandedData == "application/x-krita", "Invalid document: invalid mimetype");
+	enforce(cast(string) mimetypeFile.expandedData == "application/x-krita", "Invalid document: invalid mimetype.");
 
 	// Check maindoc
 	enforce("maindoc.xml" in kra.fileRef.directory, "Invalid document: no file 'maindoc.xml");
@@ -65,7 +65,10 @@ KRA parseKRAFile(ZipArchive file)
 	kra.width = getAttrValue!int(attrs, "width", 0);
 	kra.height = getAttrValue!int(attrs, "height", 0);
 	kra.name = getAttrValue!string(attrs, "name", "");
-	kra.colorMode = cast(ColorMode) getAttrValue!string(attrs, "colorspacename", "RGBA");
+
+	auto colorMode = cast(ColorMode) getAttrValue!string(attrs, "colorspacename", "RGBA");
+	enforce(colorMode == ColorMode.RGBA, "Support for 8-bit Integer documents only.");
+	kra.colorMode = colorMode;
 
 	importAttributes(kra, image.children[0]);
 
