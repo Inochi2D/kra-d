@@ -308,7 +308,7 @@ public:
 	 */
 	bool isLayerUseful()
 	{
-		return !isLayerGroup() && (width != 0 && height != 0);
+		return !isLayerGroup() && (width != 0 && height != 0) || isLayerGroup();
 	}
 
 	/**
