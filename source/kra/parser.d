@@ -136,7 +136,6 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 				kra.layers ~= paintLayer;
 			break;
 		case "grouplayer":
-			importAttributes(kra, l.children[0]);
 
 			auto collapsed = cast(bool) getAttrValue!int(attrs, "collapsed", 0);
 
@@ -144,6 +143,7 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 			groupLayer.type = (collapsed) ? LayerType.ClosedFolder : LayerType.OpenFolder;
 			kra.layers ~= groupLayer;
 
+			importAttributes(kra, l.children[0]);
 			Layer groupEnd;
 			groupEnd.type = LayerType.SectionDivider;
 			kra.layers ~= groupEnd;
