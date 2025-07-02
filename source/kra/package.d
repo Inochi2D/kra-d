@@ -58,4 +58,16 @@ public:
   */
   int height;
 
+  /**
+      Get layer from uuid
+  */
+   Layer getLayer(string uuid) {
+      foreach(l; layers) {
+         if (l.uuid == uuid)
+            return l;
+      }
+      
+      return null;
+   }
+
 }

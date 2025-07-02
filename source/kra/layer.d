@@ -69,7 +69,12 @@ enum LayerType
     
         Hidden in the UI
     */
-	SectionDivider = 3
+	SectionDivider = 3,
+
+	/**
+        A layer cloned from another
+    */
+	Clone = 4
 }
 
 final class Tile
@@ -256,6 +261,13 @@ public:
 	 */
 	ColorMode colorMode;
 
+	/** 
+	 * Clone data
+	 */
+	 string cloneFromUuid;
+	 LayerType cloneType;
+	 Layer* target;
+
 	/**
 	 * Gets the center coordinates of the layer
 	 */
@@ -303,12 +315,31 @@ public:
 		return type == LayerType.OpenFolder || type == LayerType.ClosedFolder;
 	}
 
+	/** 
+		Check whether the layer is useful to clone
+
+		Returns:
+			$(D true) if the layer is a clone layer, the layer it clones is available and whether that layer is useful,
+			$(D false) otherwise.
+	 */
+	bool isCloneLayerUseful() {
+		if (type == LayerType.Clone)
+		{
+			if (*target == null)
+				return false;
+			else
+				return *target.isLayerUseful();
+		}
+
+		return false;
+	}
+	
 	/**
 	 * Is the layer useful?
 	 */
 	bool isLayerUseful()
 	{
-		return !isLayerGroup() && (width != 0 && height != 0) || isLayerGroup();
+		return isLayerGroup() || isCloneLayerUseful() || (width != 0 && height != 0);
 	}
 
 	/**
@@ -317,6 +348,10 @@ public:
 	void extractLayerImage(bool crop = true)
 	{
 		extractLayer(this, crop);
+	}
+
+	void setCloneTarget() {
+		*target = &getLayer(uuid);
 	}
 
 	/**
