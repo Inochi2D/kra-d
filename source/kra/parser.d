@@ -73,9 +73,9 @@ KRA parseKRAFile(ZipArchive file) {
     enforce(colorMode == ColorMode.RGBA, "Support for 8-bit Integer documents only.");
     kra.colorMode = colorMode;
 
-    importAttributes(kra, image.children[0]);
+    importAttributes(kra, image.children[0], kra.layers);
 
-    finalizeLayers();
+    finalizeLayers(kra.layers);
 
     return kra;
 }
@@ -95,73 +95,30 @@ T getAttrValue(T, A...)(in A attributes, string name, T defaultValue) {
     return value.length > 1 ? to!T(value[1]) : defaultValue;
 }
 
-Layer baseLayer(T...)(in T attributes) {
-    Layer layer;
-    layer.name = getAttrValue!string(attributes, "name", "");
-    layer.isVisible = cast(bool) getAttrValue!int(attributes, "visible", 0);
-    layer.opacity = getAttrValue!int(attributes, "opacity", 255);
-    layer.uuid = getAttrValue!string(attributes, "uuid", "");
-    layer.x = getAttrValue!int(attributes, "x", 0);
-    layer.y = getAttrValue!int(attributes, "y", 0);
-    return layer;
-}
-
-void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity) {
+void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity, ref Layer[] layers) {
     auto layers = layerEntity.children.filter!(x => x.name == "layer");
 
     foreach (l; layers) {
         auto attrs = l.attributes;
 
+        auto fileName = getAttrValue!string(attrs, "filename", "");
+        enforce(fileName != "", "Invalid layer: filename attribute is required");
+
         switch (getAttrValue!string(attrs, "nodetype", "")) {
         case "paintlayer":
-            auto paintLayer = baseLayer(attrs);
-
-            auto colorSpacename = getAttrValue!string(attrs, "colorspacename", "RGBA");
-            auto fileName = getAttrValue!string(attrs, "filename", "");
-
-            enforce(fileName != "", "Invalid layer: filename attribute is required");
-
-            auto compositeOp = getAttrValue!string(attrs, "compositeop", "normal");
-
-            paintLayer.type = LayerType.Any;
-            paintLayer.blendModeKey = cast(BlendingMode) compositeOp;
-            paintLayer.colorMode = cast(ColorMode) colorSpacename;
+            auto paintLayer = new PaintLayer(attrs);
 
             auto layerFile = kra.fileRef.directory[buildPathKRA(kra.name, "layers", fileName)];
             kra.fileRef.expand(layerFile);
 
             if (parseLayerData(layerFile.expandedData.ptr, paintLayer))
-                kra.layers ~= paintLayer;
+                layers ~= paintLayer;
             break;
         case "grouplayer":
-
-            auto collapsed = cast(bool) getAttrValue!int(attrs, "collapsed", 0);
-
-            auto groupLayer = baseLayer(attrs);
-            groupLayer.type = (collapsed) ? LayerType.ClosedFolder : LayerType.OpenFolder;
-            kra.layers ~= groupLayer;
-
-            importAttributes(kra, l.children[0]);
-            Layer groupEnd;
-            groupEnd.type = LayerType.SectionDivider;
-            kra.layers ~= groupEnd;
+            layers ~= new GroupLayer(attrs);
             break;
         case "clonelayer":
-            auto cloneLayer = baseLayer(attrs);
-
-            auto fileName = getAttrValue!string(attrs, "filename", "");
-
-            enforce(fileName != "", "Invalid layer: filename attribute is required");
-
-            auto compositeOp = getAttrValue!string(attrs, "compositeop", "normal");
-
-            cloneLayer.type = LayerType.Clone;
-            cloneLayer.blendModeKey = cast(BlendingMode) compositeOp;
-
-            cloneLayer.cloneFromUuid = getAttrValue!string(attrs, "clonefromuuid", "");
-            cloneLayer.cloneType = getAttrValue!int(attrs, "clonetype", "");
-
-            kra.layers ~= cloneLayer;
+            kra.layers ~= new CloneLayerUuid(attrs);
             break;
         default:
             break;
@@ -218,6 +175,32 @@ bool parseLayerData(ubyte* layerData, ref Layer layer) {
     }
 
     return true;
+}
+
+/**
+    Get layer from uuid
+
+    Params:
+        layers = A given list of layers
+        uuid = The uuid to query
+      
+    Returns:
+        A layer with the given UUID,
+        $(D null) on failure.
+*/
+Layer getLayer(ref Layer[] layers, string uuid)
+{
+	foreach(l; layers)
+	{
+		if (l.uuid == uuid)
+			return l;
+
+		auto child_l = getLayer(l.children, uuid);
+		if (child_l != null)
+			return child_l;
+	}
+
+	return null;
 }
 
 string readLayerLine(ref ubyte* layerData) {
@@ -298,11 +281,19 @@ void cropLayer(ubyte[] layerData, ref Layer layer) {
     layer.data = outData;
 }
 
-void finalizeLayers() {
-    foreach (l; layers) {
-        if (l.type == LayerType.Clone)
-            l.setCloneTarget();
-    }
+void finalizeLayers(ref Layer[] layers) {
+	for (int i = 0; i < layers.length(); i++) {
+		auto l = layers[i];
+
+		if (l.children.length() > 0)
+			finalizeLayers(l.children);
+
+		if (l is CloneLayerUuid)
+		{
+			auto replacement = new CloneLayer(l);
+			layers[i] = replacement;
+		}
+	}
 }
 
 public:

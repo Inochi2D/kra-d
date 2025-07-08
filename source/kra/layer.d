@@ -50,39 +50,6 @@ enum BlendingMode : string {
     Luminosity = "luminize"
 }
 
-/**
-    The different types of layer
-*/
-enum LayerType {
-
-    /**
-        Any other type of layer
-    */
-    Any = 0,
-
-    /**
-        An open folder
-    */
-    OpenFolder = 1,
-
-    /**
-        A closed folder
-    */
-    ClosedFolder = 2,
-
-    /**
-        A bounding section divider
-    
-        Hidden in the UI
-    */
-    SectionDivider = 3,
-
-    /**
-        A layer cloned from another
-    */
-    Clone = 4
-}
-
 final class Tile {
 private:
 
@@ -147,9 +114,13 @@ public:
 }
 
 /**
-    A Krita Layer
+    Encompasses all layers, including masks
+
+    Unused params:
+        - filename: string
+        - locked: bool (checks whether the layer is locked from editing)
 */
-struct Layer {
+class Layer {
 private:
     File filePtr;
 
@@ -229,35 +200,40 @@ public:
     }
 
     /**
-        The type of layer
-    */
-    LayerType type;
-
-    /**
-        Blending mode
-    */
-    BlendingMode blendModeKey;
-
-    /**
-        Opacity of the layer
-    */
-    int opacity;
-
-    /**
         Whether the layer is visible or not
     */
     bool isVisible;
 
     /**
-        Color mode of layer
+        Sub-layers
     */
-    ColorMode colorMode;
+    Layer[] children;
+    
+    /** 
+        Constructor using tuples of attributes
+    */
+    this(T...)(in T attributes) {
+		name = getAttrValue!string(attributes, "name", "");
+		isVisible = cast(bool) getAttrValue!int(attributes, "visible", 0);
+		uuid = getAttrValue!string(attributes, "uuid", "");
+		x = getAttrValue!int(attributes, "x", 0);
+		y = getAttrValue!int(attributes, "y", 0);
+
+		importAttributes(kra, l.children[0], children);
+	}
 
     /** 
-        Clone data
+        Constructor using CloneLayerUuid
     */
-    string cloneFromUuid;
-    Layer* target;
+	this(CloneLayerUuid l) {
+		name = l.name;
+		isVisible = l.isVisible;
+		uuid = l.uuid;
+		x = l.x;
+		y = l.y;
+
+		children = l.children;
+	}
 
     /**
         Gets the center coordinates of the layer
@@ -294,39 +270,10 @@ public:
     }
 
     /**
-        Checks if the layer is a group
-        
-         Returns:
-             Whether the layer is a group
-    */
-    bool isLayerGroup() {
-        return type == LayerType.OpenFolder || type == LayerType.ClosedFolder;
-    }
-
-    /** 
-        Check whether the layer is useful to clone
-
-        Returns:
-            $(D true) if the layer is a clone layer, the layer it clones is available 
-            and whether that layer is useful,
-            $(D false) otherwise.
-    */
-    bool isCloneLayerUseful() {
-        if (type == LayerType.Clone) {
-            if (*target == null)
-                return false;
-            else
-                return *target.isLayerUseful();
-        }
-
-        return false;
-    }
-
-    /**
         Is the layer useful?
     */
     bool isLayerUseful() {
-        return isLayerGroup() || isCloneLayerUseful() || (width != 0 && height != 0);
+        return width != 0 && height != 0;
     }
 
     /**
@@ -337,15 +284,152 @@ public:
     }
 
     /**
-        Sets the cloning target for this layer to the layer
-        with the UUID that was provided during load time.
-    */
-    void setCloneTarget() {
-        *target = &getLayer(uuid);
-    }
-
-    /**
         UUID of layer
     */
     string uuid;
+}
+
+/** 
+    Base class for all layers, excluding masks
+
+    Unused params:
+        - channelflags: string
+        - colorlabel: int
+        - intimeline: int
+*/
+class BaseLayer : Layer
+{
+
+	bool collapsed;
+
+	/**
+	    Opacity of the layer
+	*/
+	int opacity;
+
+	this(T...)(in T attributes)
+	{
+		super(attributes);
+
+		collapsed = cast(bool) getAttrValue!int(attributes, "collapsed", 0);
+		opacity = getAttrValue!int(attributes, "opacity", 255);
+	}
+
+	this(CloneLayerUuid l)
+	{
+		super(l);
+
+		collapsed = l.collapsed;
+		opacity = l.opacity;
+	}
+}
+
+/** 
+    For layers with blending mode
+*/
+class CompositeLayer : BaseLayer
+{
+
+	/**
+    	Blending mode
+	*/
+	BlendingMode blendModeKey;
+
+	this(T...)(in T attributes)
+	{
+		super(attributes);
+
+		auto compositeOp = getAttrValue!string(attributes, "compositeop", "normal");
+		blendModeKey = cast(BlendingMode) compositeOp;
+	}
+
+	this(CloneLayerUuid l)
+	{
+		super(l);
+
+		blendModeKey = l.blendModeKey;
+	}
+}
+
+/**
+    Layer for raster drawing
+
+    Unused params:
+        - channellockflags: int
+        - onionskin: int (for viewing other frames in animation)
+*/
+class PaintLayer : CompositeLayer
+{
+	/**
+	    Color mode of layer
+	*/
+	ColorMode colorMode;
+
+	this(T...)(in T attributes)
+	{
+		super(attributes);
+
+		auto colorSpacename = getAttrValue!string(attributes, "colorspacename", "RGBA");
+		colorMode = cast(ColorMode) colorSpacename;
+	}
+}
+
+/** 
+    Layer that stores children layers.
+
+    Unused params:
+        - passthrough: int (checks whether its children should blend with subsequent layers outside this group)
+*/
+class GroupLayer : CompositeLayer
+{
+	override bool isLayerUseful()
+	{
+		return true;
+	}
+}
+
+/** 
+    Layer that clones another. It directly links to the target layer.
+*/
+class CloneLayer : CompositeLayer
+{
+	/** 
+	    The layer it clones from.
+	*/
+	Layer cloneFrom;
+
+	this(CloneLayerUuid l)
+	{
+		super(l);
+
+		string target_uuid = l.cloneFromUuid;
+		cloneFrom = getLayer(kra.layers, target_uuid);
+	}
+
+	override bool isLayerUseful()
+	{
+		return cloneFrom.isLayerUseful();
+	}
+}
+
+/** 
+    Layer with an UUID to its target layer. To be replaced by CloneLayer in parse finalization.
+
+    Unused params:
+        - clonefrom: string (name of the target clone)
+        - clonetype: int (layer type of the target clone)
+*/
+class CloneLayerUuid : CompositeLayer
+{
+	/** 
+	    UUID of the layer it clones from.
+	*/
+	string cloneFromUuid;
+
+	this(T...)(in T attributes)
+	{
+		super(attributes);
+
+		cloneFromUuid = getAttrValue!string(attributes, "clonefromuuid", "");
+	}
 }

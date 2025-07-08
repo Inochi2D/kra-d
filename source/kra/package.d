@@ -65,23 +65,4 @@ public:
       Height of document
    */
    int height;
-
-   /**
-      Get layer from uuid
-
-      Params:
-         uuid = The uuid to query
-      
-      Returns:
-         A layer with the given UUID,
-         $(D null) on failure.
-   */
-   Layer getLayer(string uuid) {
-      foreach (l; layers) {
-         if (l.uuid == uuid)
-            return l;
-      }
-
-      return null;
-   }
 }
