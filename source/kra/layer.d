@@ -7,7 +7,7 @@
 
     License:   Distributed under the 2-Clause BSD License, see LICENSE file.
     Authors:
-        Luna Nielsen, otrocodigo
+        Luna Nielsen, otrocodigo, mechPenSketch
 */
 module kra.layer;
 import kra;
