@@ -72,6 +72,8 @@ KRA parseKRAFile(ZipArchive file)
 
 	importAttributes(kra, image.children[0]);
 
+	finalizeLayers();
+
 	return kra;
 }
 
@@ -147,6 +149,23 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity)
 			Layer groupEnd;
 			groupEnd.type = LayerType.SectionDivider;
 			kra.layers ~= groupEnd;
+			break;
+		case "clonelayer":
+			auto cloneLayer = baseLayer(attrs);
+
+			auto fileName = getAttrValue!string(attrs, "filename", "");
+
+			enforce(fileName != "", "Invalid layer: filename attribute is required");
+
+			auto compositeOp = getAttrValue!string(attrs, "compositeop", "normal");
+
+			cloneLayer.type = LayerType.Clone;
+			cloneLayer.blendModeKey = cast(BlendingMode) compositeOp;
+
+			cloneLayer.cloneFromUuid = getAttrValue!string(attrs, "clonefromuuid", "");
+			cloneLayer.cloneType = getAttrValue!int(attrs, "clonetype", "");
+
+			kra.layers ~= cloneLayer;
 			break;
 		default:
 			break;
@@ -291,6 +310,13 @@ void cropLayer(ubyte[] layerData, ref Layer layer)
 	layer.bottom = layer.top + cropHeight;
 
 	layer.data = outData;
+}
+
+void finalizeLayers() {
+	foreach (l; layers) {
+		if (l.type == LayerType.Clone)
+			l.setCloneTarget();
+	}
 }
 
 public:
