@@ -1,7 +1,22 @@
+/**
+    LZF Decompression routine
+
+    KRA/KRA2 Parse
+
+    Copyright:
+        Copyright © 2021-2025, otrocodingo
+        Copyright © 2021-2025, Inochi2D Project
+
+    License:   Distributed under the 2-Clause BSD License, see LICENSE file.
+    Authors:
+        Luna Nielsen, otrocodigo
+*/
 module kra.lzf;
 
-ubyte[] lzfDecompress(ubyte[] input, ulong length, int maxout)
-{
+/**
+    Decompresses lzf compressed data.
+*/
+ubyte[] lzfDecompress(ubyte[] input, int maxout) {
     ubyte[] output = new ubyte[maxout];
 
     int ip = 0; // input position
@@ -10,22 +25,18 @@ ubyte[] lzfDecompress(ubyte[] input, ulong length, int maxout)
 
     int refer; // index for back reference
 
-    while (ip < ip_limit)
-    {
+    while (ip < ip_limit) {
         uint ctrl = input[ip] + 1; // control byte
         uint ofs = (input[ip] & 31) << 8; // distance of back reference.
         uint len = input[ip++] >> 5; // length of back reference.
 
-        if (ctrl < 33)
-        {
+        if (ctrl < 33) {
             // copy the next 'ctrl' number of bytes from the input array to the output array.
             output[op .. op + ctrl] = input[ip .. ip + ctrl];
-	    
+
             ip += ctrl;
             op += ctrl;
-        }
-        else
-        {
+        } else {
             // calculate reference index based on the distance of the back reference.
             len--;
             refer = op - ofs;

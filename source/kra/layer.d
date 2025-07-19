@@ -1,7 +1,14 @@
 /**
-   Structure based on psd-d (https://github.com/inochi2d/psd-d)
-*/
+    Krita Layers and Tiles
 
+    Copyright:
+        Copyright © 2021-2025, otrocodingo
+        Copyright © 2021-2025, Inochi2D Project
+
+    License:   Distributed under the 2-Clause BSD License, see LICENSE file.
+    Authors:
+        Luna Nielsen, otrocodigo
+*/
 module kra.layer;
 import kra;
 import kra.parser;
@@ -12,339 +19,333 @@ import std.stdio;
 /**
     Krita blending modes
 */
-enum BlendingMode : string
-{
-	PassThrough = "pass through",
-	Normal = "normal",
-	Dissolve = "dissolve",
-	Darken = "darken",
-	Multiply = "multiply",
-	ColorBurn = "burn",
-	LinearBurn = "linear_burn",
-	DarkerColor = "darker color",
-	Lighten = "lighter color",
-	Screen = "screen",
-	ColorDodge = "dodge",
-	LinearDodge = "linear_dodge",
-	LighterColor = "lighter color",
-	Overlay = "overlay",
-	SoftLight = "soft_light",
-	HardLight = "hard_light",
-	VividLight = "vivid_light",
-	LinearLight = "linear light",
-	PinLight = "pin_light",
-	HardMix = "hard mix",
-	Difference = "diff",
-	Exclusion = "exclusion",
-	Subtract = "subtract",
-	Divide = "divide",
-	Hue = "hue",
-	Saturation = "saturation",
-	Color = "color",
-	Luminosity = "luminize"
+enum BlendingMode : string {
+    PassThrough = "pass through",
+    Normal = "normal",
+    Dissolve = "dissolve",
+    Darken = "darken",
+    Multiply = "multiply",
+    ColorBurn = "burn",
+    LinearBurn = "linear_burn",
+    DarkerColor = "darker color",
+    Lighten = "lighter color",
+    Screen = "screen",
+    ColorDodge = "dodge",
+    LinearDodge = "linear_dodge",
+    LighterColor = "lighter color",
+    Overlay = "overlay",
+    SoftLight = "soft_light",
+    HardLight = "hard_light",
+    VividLight = "vivid_light",
+    LinearLight = "linear light",
+    PinLight = "pin_light",
+    HardMix = "hard mix",
+    Difference = "diff",
+    Exclusion = "exclusion",
+    Subtract = "subtract",
+    Divide = "divide",
+    Hue = "hue",
+    Saturation = "saturation",
+    Color = "color",
+    Luminosity = "luminize"
 }
 
 /**
     The different types of layer
 */
-enum LayerType
-{
-	/**
+enum LayerType {
+
+    /**
         Any other type of layer
     */
-	Any = 0,
+    Any = 0,
 
-	/**
+    /**
         An open folder
     */
-	OpenFolder = 1,
+    OpenFolder = 1,
 
-	/**
+    /**
         A closed folder
     */
-	ClosedFolder = 2,
+    ClosedFolder = 2,
 
-	/**
+    /**
         A bounding section divider
     
         Hidden in the UI
     */
-	SectionDivider = 3,
+    SectionDivider = 3,
 
-	/**
+    /**
         A layer cloned from another
     */
-	Clone = 4
+    Clone = 4
 }
 
-final class Tile
-{
-package(kra):
+final class Tile {
 private:
-	/**
-    	The left position of the tile
+
+    /**
+        The left position of the tile
     */
     int _left;
 
-	/**
-	    The top position of the tile
-	*/
-	int _top;
+    /**
+        The top position of the tile
+    */
+    int _top;
 
-	/**
-	    The compressed data
-	*/
-	ubyte[] _compressedData;
+    /**
+        The compressed data
+    */
+    ubyte[] _compressedData;
 
-	/**
-	    The expanded (decompressed) data
-	*/
-	ubyte[] _expandedData;
+    /**
+        The expanded (decompressed) data
+    */
+    ubyte[] _expandedData;
 
 public:
-	this(int left, int top, ubyte[] compressedData) {
-		this._top = top;
-		this._left = left;
-		this._compressedData = compressedData;
-	}
+    this(int left, int top, ubyte[] compressedData) {
+        this._top = top;
+        this._left = left;
+        this._compressedData = compressedData;
+    }
 
-	/**
-	 * Get the left position of the tile
-	 *
-	 * Returns: The left position of the tile
-	 */
-	@property int left() const {
-		return _left;
-	}
+    /**
+        The left position of the tile
+    */
+    @property int left() const { return _left; }
 
-	/**
-	 * Get the top position of the tile
-	 *
-	 * Returns: The top position of the tile
-	 */
-	@property int top() const {
-		return _top;
-	}
+    /**
+        The top position of the tile
+    */
+    @property int top() const { return _top; }
 
-	/**
-	 * Get the expanded (decompressed) data
-	 *
-	 * Returns: The expanded (decompressed) data
-	 */
-	@property const(ubyte[]) expandedData() const {
-		return _expandedData;
-	}
+    /**
+        Get the expanded (decompressed) data
 
-	/**
-	 * Method for expanding (decompressing) the compressed data
-	 *
-	 * Params:
-	 *     expandedSize = The expected size after expansion (decompression)
-	 */
-	void expand(int expandedSize) {
-		import kra.lzf;
+        Returns:
+            The expanded (decompressed) data
+    */
+    @property const(ubyte[]) expandedData() const {
+        return _expandedData;
+    }
 
-		this._expandedData = lzfDecompress(_compressedData, _compressedData.length, expandedSize);
-	}
+    /**
+        Method for expanding (decompressing) the compressed data
+
+        Params:
+           expandedSize = The expected size after expansion (decompression)
+    */
+    void expand(int expandedSize) {
+
+        import kra.lzf : lzfDecompress;
+        this._expandedData = lzfDecompress(_compressedData, expandedSize);
+    }
 }
 
+/**
+    A Krita Layer
+*/
 struct Layer {
-package(kra):
-	File filePtr;
+private:
+    File filePtr;
 
 public:
-	// Internal properties
-	Tile[] tiles;
-	int numberOfVersion;
-	int pixelSize;
-	int tileWidth;
-	int tileHeight;
-	ubyte* dataPtr;
 
-	/**
-	    The data of the layer
-	*/
-	ubyte[] data;
+    // Internal properties
+    Tile[] tiles;
+    int numberOfVersion;
+    int pixelSize;
+    int tileWidth;
+    int tileHeight;
+    ubyte* dataPtr;
 
-	/**
-	    Name of layer
-	*/
-	string name;
+    /**
+        The data of the layer
+    */
+    ubyte[] data;
 
-	/**
-	    Bounding box for layer
-	*/
-	union {
-		struct {
+    /**
+        Name of layer
+    */
+    string name;
 
-			/**
-			    Top X coordinate of layer
-			*/
-			int top;
+    /**
+        Bounding box for layer
+    */
+    union {
+        struct {
 
-			/**
-			    Left X coordinate of layer
-			*/
-			int left;
+            /**
+                Top X coordinate of layer
+            */
+            int top;
 
-			/**
-			    Bottom Y coordinate of layer
-			*/
-			int bottom;
+            /**
+                Left X coordinate of layer
+            */
+            int left;
 
-			/**
-			    Right X coordinate of layer
-			*/
-			int right;
-		}
+            /**
+                Bottom Y coordinate of layer
+            */
+            int bottom;
 
-		/**
-		    Bounds as array
-		*/
-		int[4] bounds;
-	}
+            /**
+                Right X coordinate of layer
+            */
+            int right;
+        }
 
-	/**
-	    Location for layer
-	*/
-	union {
-		struct {
-			/**
-			    X coordinate of layer
-			*/
-			int x;
+        /**
+            Bounds as array
+        */
+        int[4] bounds;
+    }
 
-			/**
-			    Y coordinate of layer
-			*/
-			int y;
-		}
+    /**
+        Location for layer
+    */
+    union {
+        struct {
+            /**
+                X coordinate of layer
+            */
+            int x;
 
-		/**
-		    Location as array
-		*/
-		int[2] location;
-	}
+            /**
+                Y coordinate of layer
+            */
+            int y;
+        }
 
-	/**
-	    The type of layer
-	*/
-	LayerType type;
+        /**
+            Location as array
+        */
+        int[2] location;
+    }
 
-	/**
-	    Blending mode
-	*/
-	BlendingMode blendModeKey;
+    /**
+        The type of layer
+    */
+    LayerType type;
 
-	/**
-	    Opacity of the layer
-	*/
-	int opacity;
+    /**
+        Blending mode
+    */
+    BlendingMode blendModeKey;
 
-	/**
-    	Whether the layer is visible or not
-	*/
-	bool isVisible;
+    /**
+        Opacity of the layer
+    */
+    int opacity;
 
-	/**
-	    Color mode of layer
-	*/
-	ColorMode colorMode;
+    /**
+        Whether the layer is visible or not
+    */
+    bool isVisible;
 
-	/** 
-	    Clone data
-	*/
-    string cloneFromUuid;
-	Layer* target;
-
-	/**
-	    Gets the center coordinates of the layer
-	*/
-	uint[2] center() {
-		return [
-			left + (width / 2),
-			top + (height / 2),
-		];
-	}
-
-	/**
-	 * Gets the size of this layer
-	 */
-	uint[2] size() {
-		return [
-			width,
-			height
-		];
-	}
-
-	/**
-	 * Width
-	 */
-	@property uint width() const {
-		return right - left;
-	}
-
-	/**
-	 * Height
-	 */
-	@property uint height() const {
-		return bottom - top;
-	}
-
-	/**
-	    Checks if the layer is a group
-	    
-         Returns:
-             Whether the layer is a group
-	*/
-	bool isLayerGroup() {
-		return type == LayerType.OpenFolder || type == LayerType.ClosedFolder;
-	}
+    /**
+        Color mode of layer
+    */
+    ColorMode colorMode;
 
     /** 
-	    Check whether the layer is useful to clone
+        Clone data
+    */
+    string cloneFromUuid;
+    Layer* target;
 
-		Returns:
-		    $(D true) if the layer is a clone layer, the layer it clones is available 
+    /**
+        Gets the center coordinates of the layer
+    */
+    uint[2] center() {
+        return [
+            left + (width / 2),
+            top + (height / 2),
+        ];
+    }
+
+    /**
+     * Gets the size of this layer
+     */
+    uint[2] size() {
+        return [
+            width,
+            height
+        ];
+    }
+
+    /**
+     * Width
+     */
+    @property uint width() const {
+        return right - left;
+    }
+
+    /**
+     * Height
+     */
+    @property uint height() const {
+        return bottom - top;
+    }
+
+    /**
+        Checks if the layer is a group
+        
+         Returns:
+             Whether the layer is a group
+    */
+    bool isLayerGroup() {
+        return type == LayerType.OpenFolder || type == LayerType.ClosedFolder;
+    }
+
+    /** 
+        Check whether the layer is useful to clone
+
+        Returns:
+            $(D true) if the layer is a clone layer, the layer it clones is available 
             and whether that layer is useful,
-			$(D false) otherwise.
-	*/
-	bool isCloneLayerUseful() {
-		if (type == LayerType.Clone)
-		{
-			if (*target == null)
-				return false;
-			else
-				return *target.isLayerUseful();
-		}
+            $(D false) otherwise.
+    */
+    bool isCloneLayerUseful() {
+        if (type == LayerType.Clone) {
+            if (*target == null)
+                return false;
+            else
+                return *target.isLayerUseful();
+        }
 
-		return false;
-	}
-	
-	/**
-	    Is the layer useful?
-	*/
-	bool isLayerUseful() {
-		return isLayerGroup() || isCloneLayerUseful() || (width != 0 && height != 0);
-	}
+        return false;
+    }
 
-	/**
-	    Extracts the layer image
-	*/
-	void extractLayerImage(bool crop = true) {
-		extractLayer(this, crop);
-	}
+    /**
+        Is the layer useful?
+    */
+    bool isLayerUseful() {
+        return isLayerGroup() || isCloneLayerUseful() || (width != 0 && height != 0);
+    }
+
+    /**
+        Extracts the layer image
+    */
+    void extractLayerImage(bool crop = true) {
+        extractLayer(this, crop);
+    }
 
     /**
         Sets the cloning target for this layer to the layer
         with the UUID that was provided during load time.
     */
-	void setCloneTarget() {
-		*target = &getLayer(uuid);
-	}
+    void setCloneTarget() {
+        *target = &getLayer(uuid);
+    }
 
-	/**
-	    UUID of layer
-	*/
-	string uuid;
+    /**
+        UUID of layer
+    */
+    string uuid;
 }
