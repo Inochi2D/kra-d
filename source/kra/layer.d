@@ -255,7 +255,6 @@ public:
 	    Clone data
 	*/
     string cloneFromUuid;
-	LayerType cloneType;
 	Layer* target;
 
 	/**
