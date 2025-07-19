@@ -102,7 +102,7 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity, ref Layer[]
         auto attrs = l.attributes;
 
         auto fileName = getAttrValue!string(attrs, "filename", "");
-        enforce(fileName != "", "Invalid layer: filename attribute is required");
+        enforce(fileName.length > 0, "Invalid layer: filename attribute is required");
 
         switch (getAttrValue!string(attrs, "nodetype", "")) {
         case "paintlayer":
@@ -188,19 +188,17 @@ bool parseLayerData(ubyte* layerData, ref Layer layer) {
         A layer with the given UUID,
         $(D null) on failure.
 */
-Layer getLayer(ref Layer[] layers, string uuid)
-{
-	foreach(l; layers)
-	{
-		if (l.uuid == uuid)
-			return l;
+Layer getLayer(ref Layer[] layers, string uuid) {
+    foreach(l; layers) {
+        if (l.uuid == uuid)
+            return l;
 
-		auto child_l = getLayer(l.children, uuid);
-		if (child_l != null)
-			return child_l;
-	}
+        auto child_l = getLayer(l.children, uuid);
+        if (child_l != null)
+            return child_l;
+    }
 
-	return null;
+    return null;
 }
 
 string readLayerLine(ref ubyte* layerData) {
@@ -282,18 +280,18 @@ void cropLayer(ubyte[] layerData, ref Layer layer) {
 }
 
 void finalizeLayers(ref Layer[] layers) {
-	for (int i = 0; i < layers.length(); i++) {
-		auto l = layers[i];
+    for (int i = 0; i < layers.length(); i++) {
+        auto l = layers[i];
 
-		if (l.children.length() > 0)
-			finalizeLayers(l.children);
+        if (l.children.length() > 0)
+            finalizeLayers(l.children);
 
-		if (l is CloneLayerUuid)
-		{
-			auto replacement = new CloneLayer(l);
-			layers[i] = replacement;
-		}
-	}
+        if (l is CloneLayerUuid)
+        {
+            auto replacement = new CloneLayer(l);
+            layers[i] = replacement;
+        }
+    }
 }
 
 public:

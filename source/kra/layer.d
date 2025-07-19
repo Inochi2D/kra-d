@@ -115,10 +115,9 @@ public:
 
 /**
     Encompasses all layers, including masks
-
-    Unused params:
-        - filename: string
-        - locked: bool (checks whether the layer is locked from editing)
+    Unused_Parameters:
+    - filename: string
+    - locked: bool (checks whether the layer is locked from editing)
 */
 class Layer {
 private:
@@ -213,27 +212,27 @@ public:
         Constructor using tuples of attributes
     */
     this(T...)(in T attributes) {
-		name = getAttrValue!string(attributes, "name", "");
-		isVisible = cast(bool) getAttrValue!int(attributes, "visible", 0);
-		uuid = getAttrValue!string(attributes, "uuid", "");
-		x = getAttrValue!int(attributes, "x", 0);
-		y = getAttrValue!int(attributes, "y", 0);
+        name = getAttrValue!string(attributes, "name", "");
+        isVisible = cast(bool) getAttrValue!int(attributes, "visible", 0);
+        uuid = getAttrValue!string(attributes, "uuid", "");
+        x = getAttrValue!int(attributes, "x", 0);
+        y = getAttrValue!int(attributes, "y", 0);
 
-		importAttributes(kra, l.children[0], children);
-	}
+        importAttributes(kra, l.children[0], children);
+    }
 
     /** 
         Constructor using CloneLayerUuid
     */
-	this(CloneLayerUuid l) {
-		name = l.name;
-		isVisible = l.isVisible;
-		uuid = l.uuid;
-		x = l.x;
-		y = l.y;
+    this(CloneLayerUuid l) {
+        name = l.name;
+        isVisible = l.isVisible;
+        uuid = l.uuid;
+        x = l.x;
+        y = l.y;
 
-		children = l.children;
-	}
+        children = l.children;
+    }
 
     /**
         Gets the center coordinates of the layer
@@ -291,37 +290,33 @@ public:
 
 /** 
     Base class for all layers, excluding masks
-
-    Unused params:
-        - channelflags: string
-        - colorlabel: int
-        - intimeline: int
+    Unused_Parameters:
+    - channelflags: string
+    - colorlabel: int
+    - intimeline: int
 */
-class BaseLayer : Layer
-{
+class BaseLayer : Layer {
 
-	bool collapsed;
+    bool collapsed;
 
-	/**
-	    Opacity of the layer
-	*/
-	int opacity;
+    /**
+        Opacity of the layer
+    */
+    int opacity;
 
-	this(T...)(in T attributes)
-	{
-		super(attributes);
+    this(T...)(in T attributes) {
+        super(attributes);
 
-		collapsed = cast(bool) getAttrValue!int(attributes, "collapsed", 0);
-		opacity = getAttrValue!int(attributes, "opacity", 255);
-	}
+        collapsed = cast(bool) getAttrValue!int(attributes, "collapsed", 0);
+        opacity = getAttrValue!int(attributes, "opacity", 255);
+    }
 
-	this(CloneLayerUuid l)
-	{
-		super(l);
+    this(CloneLayerUuid l) {
+        super(l);
 
-		collapsed = l.collapsed;
-		opacity = l.opacity;
-	}
+        collapsed = l.collapsed;
+        opacity = l.opacity;
+    }
 }
 
 /** 
@@ -330,62 +325,60 @@ class BaseLayer : Layer
 class CompositeLayer : BaseLayer
 {
 
-	/**
-    	Blending mode
-	*/
-	BlendingMode blendModeKey;
+    /**
+        Blending mode
+    */
+    BlendingMode blendModeKey;
 
-	this(T...)(in T attributes)
-	{
-		super(attributes);
+    this(T...)(in T attributes)
+    {
+        super(attributes);
 
-		auto compositeOp = getAttrValue!string(attributes, "compositeop", "normal");
-		blendModeKey = cast(BlendingMode) compositeOp;
-	}
+        auto compositeOp = getAttrValue!string(attributes, "compositeop", "normal");
+        blendModeKey = cast(BlendingMode) compositeOp;
+    }
 
-	this(CloneLayerUuid l)
-	{
-		super(l);
+    this(CloneLayerUuid l)
+    {
+        super(l);
 
-		blendModeKey = l.blendModeKey;
-	}
+        blendModeKey = l.blendModeKey;
+    }
 }
 
 /**
     Layer for raster drawing
-
-    Unused params:
-        - channellockflags: int
-        - onionskin: int (for viewing other frames in animation)
+    Unused_Parameters:
+    - channellockflags: int
+    - onionskin: int (for viewing other frames in animation)
 */
 class PaintLayer : CompositeLayer
 {
-	/**
-	    Color mode of layer
-	*/
-	ColorMode colorMode;
+    /**
+        Color mode of layer
+    */
+    ColorMode colorMode;
 
-	this(T...)(in T attributes)
-	{
-		super(attributes);
+    this(T...)(in T attributes)
+    {
+        super(attributes);
 
-		auto colorSpacename = getAttrValue!string(attributes, "colorspacename", "RGBA");
-		colorMode = cast(ColorMode) colorSpacename;
-	}
+        auto colorSpacename = getAttrValue!string(attributes, "colorspacename", "RGBA");
+        colorMode = cast(ColorMode) colorSpacename;
+    }
 }
 
 /** 
     Layer that stores children layers.
-
-    Unused params:
-        - passthrough: int (checks whether its children should blend with subsequent layers outside this group)
+    Unused_Parameters:
+    - passthrough: int (checks whether its children should blend with subsequent layers outside this group)
 */
 class GroupLayer : CompositeLayer
 {
-	override bool isLayerUseful()
-	{
-		return true;
-	}
+    override bool isLayerUseful()
+    {
+        return true;
+    }
 }
 
 /** 
@@ -393,43 +386,42 @@ class GroupLayer : CompositeLayer
 */
 class CloneLayer : CompositeLayer
 {
-	/** 
-	    The layer it clones from.
-	*/
-	Layer cloneFrom;
+    /** 
+        The layer it clones from.
+    */
+    Layer cloneFrom;
 
-	this(CloneLayerUuid l)
-	{
-		super(l);
+    this(CloneLayerUuid l)
+    {
+        super(l);
 
-		string target_uuid = l.cloneFromUuid;
-		cloneFrom = getLayer(kra.layers, target_uuid);
-	}
+        string target_uuid = l.cloneFromUuid;
+        cloneFrom = getLayer(kra.layers, target_uuid);
+    }
 
-	override bool isLayerUseful()
-	{
-		return cloneFrom.isLayerUseful();
-	}
+    override bool isLayerUseful()
+    {
+        return cloneFrom.isLayerUseful();
+    }
 }
 
 /** 
     Layer with an UUID to its target layer. To be replaced by CloneLayer in parse finalization.
-
-    Unused params:
-        - clonefrom: string (name of the target clone)
-        - clonetype: int (layer type of the target clone)
+    Unused_Parameters:
+    - clonefrom: string (name of the target clone)
+    - clonetype: int (layer type of the target clone)
 */
 class CloneLayerUuid : CompositeLayer
 {
-	/** 
-	    UUID of the layer it clones from.
-	*/
-	string cloneFromUuid;
+    /** 
+        UUID of the layer it clones from.
+    */
+    string cloneFromUuid;
 
-	this(T...)(in T attributes)
-	{
-		super(attributes);
+    this(T...)(in T attributes)
+    {
+        super(attributes);
 
-		cloneFromUuid = getAttrValue!string(attributes, "clonefromuuid", "");
-	}
+        cloneFromUuid = getAttrValue!string(attributes, "clonefromuuid", "");
+    }
 }
