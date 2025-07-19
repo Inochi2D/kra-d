@@ -82,28 +82,27 @@ final class Tile
 package(kra):
 private:
 	/**
-	 * The left position of the tile
-	 */
-	int _left;
+    	The left position of the tile
+    */
+    int _left;
 
 	/**
-	 * The top position of the tile
-	 */
+	    The top position of the tile
+	*/
 	int _top;
 
 	/**
-	 *  The compressed data
-	 */
+	    The compressed data
+	*/
 	ubyte[] _compressedData;
 
 	/**
-	 * The expanded (decompressed) data
-	 */
+	    The expanded (decompressed) data
+	*/
 	ubyte[] _expandedData;
 
 public:
-	this(int left, int top, ubyte[] compressedData)
-	{
+	this(int left, int top, ubyte[] compressedData) {
 		this._top = top;
 		this._left = left;
 		this._compressedData = compressedData;
@@ -114,8 +113,7 @@ public:
 	 *
 	 * Returns: The left position of the tile
 	 */
-	@property int left() const
-	{
+	@property int left() const {
 		return _left;
 	}
 
@@ -124,8 +122,7 @@ public:
 	 *
 	 * Returns: The top position of the tile
 	 */
-	@property int top() const
-	{
+	@property int top() const {
 		return _top;
 	}
 
@@ -134,8 +131,7 @@ public:
 	 *
 	 * Returns: The expanded (decompressed) data
 	 */
-	@property const(ubyte[]) expandedData() const
-	{
+	@property const(ubyte[]) expandedData() const {
 		return _expandedData;
 	}
 
@@ -145,16 +141,14 @@ public:
 	 * Params:
 	 *     expandedSize = The expected size after expansion (decompression)
 	 */
-	void expand(int expandedSize)
-	{
+	void expand(int expandedSize) {
 		import kra.lzf;
 
 		this._expandedData = lzfDecompress(_compressedData, _compressedData.length, expandedSize);
 	}
 }
 
-struct Layer
-{
+struct Layer {
 package(kra):
 	File filePtr;
 
@@ -168,111 +162,106 @@ public:
 	ubyte* dataPtr;
 
 	/**
-	 * The data of the layer
-	 */
+	    The data of the layer
+	*/
 	ubyte[] data;
 
 	/**
-	 *  Name of layer
+	    Name of layer
 	*/
 	string name;
 
 	/**
-	 * Bounding box for layer
-	 */
-	union
-	{
-		struct
-		{
+	    Bounding box for layer
+	*/
+	union {
+		struct {
 
 			/**
-			 * Top X coordinate of layer
-			 */
+			    Top X coordinate of layer
+			*/
 			int top;
 
 			/**
-			 * Left X coordinate of layer
-			 */
+			    Left X coordinate of layer
+			*/
 			int left;
 
 			/**
-			 * Bottom Y coordinate of layer
-			 */
+			    Bottom Y coordinate of layer
+			*/
 			int bottom;
 
 			/**
-			 * Right X coordinate of layer
-			 */
+			    Right X coordinate of layer
+			*/
 			int right;
 		}
 
 		/**
-		 * Bounds as array
-		 */
+		    Bounds as array
+		*/
 		int[4] bounds;
 	}
 
 	/**
-	 * Location for layer
-	 */
-	union
-	{
-		struct
-		{
+	    Location for layer
+	*/
+	union {
+		struct {
 			/**
-			 * X coordinate of layer
-			 */
+			    X coordinate of layer
+			*/
 			int x;
 
 			/**
-			 * Y coordinate of layer
-			 */
+			    Y coordinate of layer
+			*/
 			int y;
 		}
 
 		/**
-		 * Location as array
-		 */
+		    Location as array
+		*/
 		int[2] location;
 	}
 
 	/**
-	 * The type of layer
-	 */
+	    The type of layer
+	*/
 	LayerType type;
 
 	/**
-	 * Blending mode
-	 */
+	    Blending mode
+	*/
 	BlendingMode blendModeKey;
 
 	/**
-	 * Opacity of the layer
+	    Opacity of the layer
 	*/
 	int opacity;
 
 	/**
-	 * Whether the layer is visible or not
+    	Whether the layer is visible or not
 	*/
 	bool isVisible;
 
 	/**
-	 * Color mode of layer
-	 */
+	    Color mode of layer
+	*/
 	ColorMode colorMode;
 
 	/** 
-	 * Clone data
-	 */
-	 string cloneFromUuid;
-	 LayerType cloneType;
-	 Layer* target;
+	    Clone data
+	*/
+    string cloneFromUuid;
+	LayerType cloneType;
+	Layer* target;
 
 	/**
-	 * Gets the center coordinates of the layer
-	 */
-	uint[2] center()
-	{
+	    Gets the center coordinates of the layer
+	*/
+	uint[2] center() {
 		return [
 			left + (width / 2),
 			top + (height / 2),
@@ -282,8 +271,7 @@ public:
 	/**
 	 * Gets the size of this layer
 	 */
-	uint[2] size()
-	{
+	uint[2] size() {
 		return [
 			width,
 			height
@@ -293,35 +281,35 @@ public:
 	/**
 	 * Width
 	 */
-	@property uint width() const
-	{
+	@property uint width() const {
 		return right - left;
 	}
 
 	/**
 	 * Height
 	 */
-	@property uint height() const
-	{
+	@property uint height() const {
 		return bottom - top;
 	}
 
 	/**
-	 * Check if the layer is a group
-	 * Returns: if the layer is a group
-	 */
-	bool isLayerGroup()
-	{
+	    Checks if the layer is a group
+	    
+         Returns:
+             Whether the layer is a group
+	*/
+	bool isLayerGroup() {
 		return type == LayerType.OpenFolder || type == LayerType.ClosedFolder;
 	}
 
-	/** 
-		Check whether the layer is useful to clone
+    /** 
+	    Check whether the layer is useful to clone
 
 		Returns:
-			$(D true) if the layer is a clone layer, the layer it clones is available and whether that layer is useful,
+		    $(D true) if the layer is a clone layer, the layer it clones is available 
+            and whether that layer is useful,
 			$(D false) otherwise.
-	 */
+	*/
 	bool isCloneLayerUseful() {
 		if (type == LayerType.Clone)
 		{
@@ -335,27 +323,29 @@ public:
 	}
 	
 	/**
-	 * Is the layer useful?
-	 */
-	bool isLayerUseful()
-	{
+	    Is the layer useful?
+	*/
+	bool isLayerUseful() {
 		return isLayerGroup() || isCloneLayerUseful() || (width != 0 && height != 0);
 	}
 
 	/**
-	 * Extracts the layer image
-	 */
-	void extractLayerImage(bool crop = true)
-	{
+	    Extracts the layer image
+	*/
+	void extractLayerImage(bool crop = true) {
 		extractLayer(this, crop);
 	}
 
+    /**
+        Sets the cloning target for this layer to the layer
+        with the UUID that was provided during load time.
+    */
 	void setCloneTarget() {
 		*target = &getLayer(uuid);
 	}
 
 	/**
-	 * UUID of layer
-	 */
+	    UUID of layer
+	*/
 	string uuid;
 }
