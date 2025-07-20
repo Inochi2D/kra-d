@@ -19,8 +19,18 @@ import std.stdio;
 /** 
     Color-coded labels to distinguish layers in Krita.
     Can also be used in custom UI.
- */
- enum ColorLabel {None, Blue, Green, Yellow, Orange, Brown, Red, Purple, Grey}
+*/
+ enum ColorLabel {
+    None,
+    Blue,
+    Green,
+    Yellow,
+    Orange,
+    Brown,
+    Red,
+    Purple,
+    Grey
+}
 
 /**
     Krita blending modes
@@ -326,14 +336,12 @@ class BaseLayer : Layer {
         opacity = l.opacity;
     }
 
-    BlendingMode getBlendModeKey(T...)(in T attributes)
-    {
+    BlendingMode getBlendModeKey(T...)(in T attributes) {
         auto compositeOp = getAttrValue!string(attributes, "compositeop", "normal");
         return cast(BlendingMode) compositeOp;
     }
 
-    ColorMode getColorMode(T...)(in T attributes)
-    {
+    ColorMode getColorMode(T...)(in T attributes) {
         auto colorSpacename = getAttrValue!string(attributes, "colorspacename", "RGBA");
         return cast(ColorMode) colorSpacename;
     }
@@ -342,23 +350,20 @@ class BaseLayer : Layer {
 /** 
     For layers with blending mode
 */
-class CompositeLayer : BaseLayer
-{
+class CompositeLayer : BaseLayer {
 
     /**
         Blending mode
     */
     BlendingMode blendModeKey;
 
-    this(T...)(in T attributes)
-    {
+    this(T...)(in T attributes) {
         super(attributes);
 
         blendModeKey = getBlendModeKey(attributes);
     }
 
-    this(CloneLayerUuid l)
-    {
+    this(CloneLayerUuid l) {
         super(l);
 
         blendModeKey = l.blendModeKey;
@@ -371,15 +376,13 @@ class CompositeLayer : BaseLayer
     - channellockflags: int
     - onionskin: int (for viewing other frames in animation)
 */
-class PaintLayer : CompositeLayer
-{
+class PaintLayer : CompositeLayer {
     /**
         Color mode of layer
     */
     ColorMode colorMode;
 
-    this(T...)(in T attributes)
-    {
+    this(T...)(in T attributes) {
         super(attributes);
 
         colorMode = getColorMode(attributes);
@@ -389,8 +392,7 @@ class PaintLayer : CompositeLayer
 /** 
     Layer that stores children layers.
 */
-class GroupLayer : CompositeLayer
-{
+class GroupLayer : CompositeLayer {
     /** 
         Checks whether its children layers should be rendered individually.
         This affects how they blend with subsequent layers outside
@@ -398,15 +400,13 @@ class GroupLayer : CompositeLayer
     */
     bool canPassThrough;
 
-    this(T...)(in T attributes)
-    {
+    this(T...)(in T attributes) {
         super(attributes);
 
         canPassThrough = cast(bool) getAttrValue!int(attributes, "passthrough", 0);
     }
     
-    override bool isLayerUseful()
-    {
+    override bool isLayerUseful() {
         return true;
     }
 }
@@ -414,23 +414,20 @@ class GroupLayer : CompositeLayer
 /** 
     Layer that clones another. It directly links to the target layer.
 */
-class CloneLayer : CompositeLayer
-{
+class CloneLayer : CompositeLayer {
     /** 
         The layer it clones from.
     */
     Layer cloneFrom;
 
-    this(CloneLayerUuid l)
-    {
+    this(CloneLayerUuid l) {
         super(l);
 
         string target_uuid = l.cloneFromUuid;
         cloneFrom = getLayer(kra.layers, target_uuid);
     }
 
-    override bool isLayerUseful()
-    {
+    override bool isLayerUseful() {
         return cloneFrom.isLayerUseful();
     }
 }
@@ -441,15 +438,13 @@ class CloneLayer : CompositeLayer
     - clonefrom: string (name of the target clone)
     - clonetype: int (layer type of the target clone)
 */
-class CloneLayerUuid : CompositeLayer
-{
+class CloneLayerUuid : CompositeLayer {
     /** 
         UUID of the layer it clones from.
     */
     string cloneFromUuid;
 
-    this(T...)(in T attributes)
-    {
+    this(T...)(in T attributes) {
         super(attributes);
 
         cloneFromUuid = getAttrValue!string(attributes, "clonefromuuid", "");
@@ -479,15 +474,13 @@ class FillLayer : CompositeLayer {}
         - Enum: None, ToImageSize, ToImagePPI
     - source: string (link to the file)
 */
-class FileLayer : CompositeLayer
-{
+class FileLayer : CompositeLayer {
     /**
         Color mode of layer
     */
     ColorMode colorMode;
 
-    this(T...)(in T attributes)
-    {
+    this(T...)(in T attributes) {
         super(attributes);
 
         colorMode = getColorMode(attributes);
@@ -501,15 +494,13 @@ class FileLayer : CompositeLayer
     - filterversion: string (version of the filter used)
     - selected: bool
 */
-class FilterLayer : BaseLayer
-{
+class FilterLayer : BaseLayer {
     /**
         Blending mode
     */
     BlendingMode blendModeKey;
 
-    this(T...)(in T attributes)
-    {
+    this(T...)(in T attributes) {
         super(attributes);
 
         blendModeKey = getBlendModeKey(attributes);
@@ -526,8 +517,7 @@ class FilterLayer : BaseLayer
     - limit-to-device: int (checks whether the coloring is bound by device's screen size)
     - use-edge-detection: int (checks whether there should be a limit to line thickness that seperates different color)
 */
-class ColorizeMask : BaseLayer
-{
+class ColorizeMask : BaseLayer {
     /**
         Blending mode
     */
@@ -540,8 +530,7 @@ class ColorizeMask : BaseLayer
 
     bool showColoring;
 
-    this(T...)(in T attributes)
-    {
+    this(T...)(in T attributes) {
         super(attributes);
 
         blendModeKey = getBlendModeKey(attributes);
@@ -574,13 +563,11 @@ class TransparancyMask : BaseLayer {}
     Unused_Parameters:
     - active: bool
 */
-class SelectionMask : BaseLayer
-{
+class SelectionMask : BaseLayer {
     /** 
         This layer is not useful.
     */
-    override bool isLayerUseful()
-    {
+    override bool isLayerUseful() {
         return false;
     }
 }
