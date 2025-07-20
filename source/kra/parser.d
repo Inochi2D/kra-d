@@ -96,7 +96,7 @@ T getAttrValue(T, A...)(in A attributes, string name, T defaultValue) {
 }
 
 void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity, ref Layer[] layers) {
-    auto layers = layerEntity.children.filter!(x => x.name == "layer");
+    auto layers = layerEntity.children.filter!(x => x.name == "layer" || x.name == "mask");
 
     foreach (l; layers) {
         auto attrs = l.attributes;
