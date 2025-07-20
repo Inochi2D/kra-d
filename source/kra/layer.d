@@ -16,6 +16,12 @@ import kra.parser;
 import std.file;
 import std.stdio;
 
+/** 
+	Color-coded labels to distinguish layers in Krita.
+	Can also be used in custom UI.
+ */
+ enum ColorLabel {None, Blue, Green, Yellow, Orange, Brown, Red, Purple, Grey}
+
 /**
     Krita blending modes
 */
@@ -292,12 +298,13 @@ public:
     Base class for all layers, excluding masks
     Unused_Parameters:
     - channelflags: string
-    - colorlabel: int
     - intimeline: int
 */
 class BaseLayer : Layer {
 
     bool collapsed;
+
+    ColorLabel colorLabel;
 
     /**
         Opacity of the layer
@@ -308,6 +315,7 @@ class BaseLayer : Layer {
         super(attributes);
 
         collapsed = cast(bool) getAttrValue!int(attributes, "collapsed", 0);
+        colorLabel = cast(ColorLabel) getAttrValue!int(attributes, "colorlabel", 0);
         opacity = getAttrValue!int(attributes, "opacity", 255);
     }
 
@@ -317,6 +325,18 @@ class BaseLayer : Layer {
         collapsed = l.collapsed;
         opacity = l.opacity;
     }
+
+	BlendingMode getBlendModeKey(T...)(in T attributes)
+	{
+		auto compositeOp = getAttrValue!string(attributes, "compositeop", "normal");
+		return cast(BlendingMode) compositeOp;
+	}
+
+	ColorMode getColorMode(T...)(in T attributes)
+	{
+		auto colorSpacename = getAttrValue!string(attributes, "colorspacename", "RGBA");
+		return cast(ColorMode) colorSpacename;
+	}
 }
 
 /** 
@@ -334,9 +354,8 @@ class CompositeLayer : BaseLayer
     {
         super(attributes);
 
-        auto compositeOp = getAttrValue!string(attributes, "compositeop", "normal");
-        blendModeKey = cast(BlendingMode) compositeOp;
-    }
+		blendModeKey = getBlendModeKey(attributes);
+	}
 
     this(CloneLayerUuid l)
     {
@@ -363,18 +382,29 @@ class PaintLayer : CompositeLayer
     {
         super(attributes);
 
-        auto colorSpacename = getAttrValue!string(attributes, "colorspacename", "RGBA");
-        colorMode = cast(ColorMode) colorSpacename;
+        colorMode = getColorMode(attributes);
     }
 }
 
 /** 
     Layer that stores children layers.
-    Unused_Parameters:
-    - passthrough: int (checks whether its children should blend with subsequent layers outside this group)
 */
 class GroupLayer : CompositeLayer
 {
+    /** 
+	    Checks whether its children layers should be rendered individually.
+	    This affects how they blend with subsequent layers outside
+	    of this group.
+	*/
+	bool canPassThrough;
+
+	this(T...)(in T attributes)
+	{
+		super(attributes);
+
+		canPassThrough = cast(bool) getAttrValue!int(attributes, "passthrough", 0);
+	}
+    
     override bool isLayerUseful()
     {
         return true;
@@ -424,4 +454,139 @@ class CloneLayerUuid : CompositeLayer
 
         cloneFromUuid = getAttrValue!string(attributes, "clonefromuuid", "");
     }
+}
+
+/**
+ * Layer for vector drawing.
+ */
+class VectorLayer : CompositeLayer {}
+
+/**
+ * Layer for filling the whole canvas.
+ *
+ * Unused params:
+ * 	* generatorname: string (name of the type of fill used)
+ *		* list: color, gradient, multigrid, pattern, screentone, seexpr, simplexnoise
+ * 	* generatorversion: string (version of the fill used)
+ * 	* selected: bool
+ */
+class FillLayer : CompositeLayer {}
+
+/**
+ * Layer for diaplaying an image file.
+ *
+ * Unused params:
+ * 	* selected: bool
+ * 	* scalingmethod: int (an enum of how the file is scaled)
+ *		* Enum: None, ToImageSize, ToImagePPI
+ * 	* source: string (link to the file)
+ */
+class FileLayer : CompositeLayer
+{
+	/**
+	 * Color mode of layer
+	 */
+	ColorMode colorMode;
+
+	this(T...)(in T attributes)
+	{
+		super(attributes);
+
+		colorMode = getColorMode(attributes);
+	}
+}
+
+/**
+ * Layer for applying filter to subsequent layers.
+ *
+ * Unused params:
+ * 	* filtername: string (name of the type of filter used)
+ * 	* filterversion: string (version of the filter used)
+ * 	* selected: bool
+ */
+class FilterLayer : BaseLayer
+{
+	/**
+	 * Blending mode
+	 */
+	BlendingMode blendModeKey;
+
+	this(T...)(in T attributes)
+	{
+		super(attributes);
+
+		blendModeKey = getBlendModeKey(attributes);
+	}
+}
+
+/**
+ * Mask for coloring line art.
+ *
+ * Unused params:
+ * 	* cleanup: int (in percentage, the extent the mask removes keys strokes placed outside closed contours)
+ * 	* edge-detection-size: int (thinnest line width to seperate different colors)
+ *	* edit-keystroke: int (checks whether the mask can be edited by stroke)
+ * 	* fuzzy-radius: int (how blurry the edge is)
+ * 	* limit-to-device: int (checks whether the coloring is bound by device's screen size)
+ * 	* use-edge-detection: int (checks whether there should be a limit to line thickness that seperates different color)
+ */
+class ColorizeMask : BaseLayer
+{
+	/**
+	 * Blending mode
+	 */
+	BlendingMode blendModeKey;
+
+	/**
+	 * Color mode of layer
+	 */
+	ColorMode colorMode;
+
+	bool showColoring;
+
+	this(T...)(in T attributes)
+	{
+		super(attributes);
+
+		blendModeKey = getBlendModeKey(attributes);
+		colorMode = getColorMode(attributes);
+
+		showColoring = cast(bool) getAttributes!int(attributes, "show-coloring", 0);
+	}
+}
+
+/**
+ * Mask for applying transform effect.
+ */
+class TransformMask : BaseLayer {}
+
+/**
+ * Mask for applying filter on certain areas.
+ *
+ * Unused params:
+ * 	* filtername: string (name of the type of filter used)
+ * 	* filterversion: string (version of the filter used)
+ */
+class FilterMask : BaseLayer {}
+
+/**
+ * Mask for apply transparancy on certain areas.
+ */
+class TransparancyMask : BaseLayer {}
+
+/**
+ * Refernce for selecting certain areas.
+ *
+ * Unused params:
+ * 	* active: bool
+ */
+class SelectionMask : BaseLayer
+{
+	/** 
+	 * This layer is not useful.
+	 */
+	override bool isLayerUseful()
+	{
+		return false;
+	}
 }
