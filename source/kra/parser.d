@@ -96,9 +96,9 @@ T getAttrValue(T, A...)(in A attributes, string name, T defaultValue) {
 }
 
 void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity, ref Layer[] layers) {
-    auto layers = layerEntity.children.filter!(x => x.name == "layer" || x.name == "mask");
+    auto layers_from_dom = layerEntity.children.filter!(x => x.name == "layer" || x.name == "mask");
 
-    foreach (l; layers) {
+    foreach (l; layers_from_dom) {
         auto attrs = l.attributes;
 
         auto fileName = getAttrValue!string(attrs, "filename", "");
@@ -118,7 +118,7 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity, ref Layer[]
             layers ~= new GroupLayer(attrs);
             break;
         case "clonelayer":
-            kra.layers ~= new CloneLayerUuid(attrs);
+            layers ~= new CloneLayerUuid(attrs);
             break;
         default:
             break;
