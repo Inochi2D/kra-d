@@ -120,6 +120,15 @@ void importAttributes(ref KRA kra, ref DOMEntity!string layerEntity, ref Layer[]
         case "clonelayer":
             kra.layers ~= new CloneLayerUuid(attrs);
             break;
+        case "colorizemask":
+            auto colorizeMask = new ColorizeMask(attrs);
+
+            auto layerFile = kra.fileRef.directory[buildPathKRA(kra.name, "layers", fileName ~ ".colorizemask", "colorize-coloring")];
+            kra.fileRef.expand(layerFile);
+
+            if (parseLayerData(layerFile.expandedData.ptr, colorizeMask))
+                layers ~= colorizeMask;
+            break;
         default:
             break;
         }
